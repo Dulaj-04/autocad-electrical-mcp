@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "acad-electrical": {
+      "command": "acad-electrical-mcp",
+      "env": { "ACAD_MCP_WORKSPACE": "/path/to/my/drawings" }
+    }
+  }
+}

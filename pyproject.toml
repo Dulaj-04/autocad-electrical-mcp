@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acad-electrical-mcp"
+version = "0.1.0"
+description = "MCP server for creating, revising, validating and exporting editable AutoCAD Electrical floor drawings"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=1.2",
+  "ezdxf>=1.3",
+  "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+autocad = ["pywin32>=306; sys_platform == 'win32'"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+acad-electrical-mcp = "acad_electrical_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
