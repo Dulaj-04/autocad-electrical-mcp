@@ -17,7 +17,8 @@ dependencies = [
 
 [project.optional-dependencies]
 autocad = ["pywin32>=306; sys_platform == 'win32'"]
-dev = ["pytest>=8", "ruff>=0.5"]
+excel = ["openpyxl>=3.1"]
+dev = ["pytest>=8", "ruff>=0.5", "openpyxl>=3.1"]
 
 [project.urls]
 Homepage = "https://github.com/Dulaj-04/autocad-electrical-mcp"

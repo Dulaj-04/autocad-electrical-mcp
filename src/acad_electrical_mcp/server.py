@@ -6,13 +6,14 @@ import argparse
 import json
 import logging
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP, Image
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import __version__, export, inspection, planner, template, validate
+from . import __version__, dialux, export, inspection, planner, template, validate
 from .backends import autocad_backend
 from .backends.base import BackendError
 from .config import Config, safe_name
@@ -402,6 +403,117 @@ def acad_run_command(command: str) -> dict[str, Any]:
 
 
 
+
+# --------------------------------------------------------------------------- DIALux import
+def _transform(dx, dy, rotation, scale, transform):
+    return transform if transform else dialux.make_transform(dx, dy, rotation, scale)
+
+
+@mcp.tool()
+def dialux_inspect(path: str, include_nested: bool = False) -> dict[str, Any]:
+    """Look inside a DIALux DWG/DXF export (read-only): block names with counts, layers,
+    attributes, positions and units. Run this first, then choose which block names are luminaires
+    for dialux_import. DWG needs the ODA File Converter on this machine; otherwise save/export it as
+    DXF. Set include_nested=true if the luminaires sit inside one big block."""
+    return _guard(lambda: dialux.inspect(path, include_nested))
+
+
+@mcp.tool()
+def dialux_align(source_a: list[float], source_b: list[float], target_a: list[float],
+                 target_b: list[float]) -> dict[str, Any]:
+    """Work out the transform (shift, rotation, scale) that maps the DIALux export onto the
+    architectural drawing, from two points you can identify in both (e.g. two column corners):
+    source_a/b in the DIALux file, target_a/b in the architectural drawing. Pass the result as
+    `transform` to dialux_import. 'residual' is the leftover error at the second point (drawing
+    units); a large value means the points do not match."""
+    return _guard(lambda: dialux.fit_two_points(source_a, source_b, target_a, target_b))
+
+
+@mcp.tool()
+def import_luminaire_list(path: str, sheet: str | None = None,
+                          columns: dict[str, str] | None = None) -> dict[str, Any]:
+    """Read a luminaire list (CSV, or XLSX with openpyxl) exported from DIALux or Excel: type/name,
+    quantity, wattage and luminous flux, with the columns detected automatically (override with
+    columns={'type': 'Header', 'watts': 'Header', ...}). Read-only. Wattage is never invented: types
+    without one are listed in missing_watts."""
+    return _guard(lambda: dialux.read_luminaire_list(path, sheet, columns))
+
+
+@mcp.tool()
+def dialux_import(
+    project: str, floor: str, path: str, block_names: list[str] | None = None,
+    layers: list[str] | None = None, include_nested: bool = False,
+    dx: float = 0.0, dy: float = 0.0, rotation: float = 0.0, scale: float = 1.0,
+    transform: dict[str, float] | None = None, type_map: dict[str, str] | None = None,
+    luminaire_list: str | None = None, watts_by_type: dict[str, float] | None = None,
+    circuit: str | None = None, label_attribute: str | None = None,
+    replace_previous: bool = False, tolerance: float = 0.01,
+) -> dict[str, Any]:
+    """Import luminaires from a DIALux DWG/DXF export into the floor model as a CHANGESET (nothing
+    is drawn until apply_changes). block_names/layers choose what to import (see dialux_inspect);
+    dx/dy/rotation/scale or `transform` (from dialux_align) position it on the architectural
+    drawing; type_map maps block names to device types (default luminaire; e.g. {'EXIT_SIGN':
+    'emergency'}); luminaire_list (CSV/XLSX path) and/or watts_by_type supply wattage and lumens;
+    rooms are assigned from the model's room bounds. Re-importing updates in place, no duplicates;
+    replace_previous=true also removes earlier DIALux devices that are no longer in the file."""
+    m = _model(project, floor)
+
+    def run():
+        t = _transform(dx, dy, rotation, scale, transform)
+        found = dialux.extract(path, block_names, layers, include_nested, t)
+        if not found:
+            raise ValueError("No matching blocks found. Check block_names/layers with dialux_inspect.")
+        specs = dialux.specs_from_list(dialux.read_luminaire_list(luminaire_list)) \
+            if luminaire_list else {}
+        tag = f"dialux:{Path(path).name}:{dialux.sha256_file(path)[:8]}"
+        devs, info = dialux.build_device_specs(m, found, type_map, specs, watts_by_type, circuit,
+                                               tag, label_attribute)
+        remove = []
+        if replace_previous:
+            for d in m["devices"]:
+                if str(d.get("source", "")).startswith("dialux:") and not any(
+                        n["type"] == d["type"] and abs(n["x"] - d["x"]) <= tolerance
+                        and abs(n["y"] - d["y"]) <= tolerance for n in devs):
+                    remove.append(d["id"])
+        cs = planner.plan_devices(m, devs, remove, tolerance)
+        cs["label"] = "dialux_import"
+        chk = dialux.extent_check(m, devs)
+        info["extent_check"] = chk
+        if chk and chk["suspicious"]:
+            cs["assumptions"].append(
+                f"SCALE/UNITS LOOK WRONG: the imported luminaires span {chk['imported_span']} but "
+                f"the rooms span {chk['rooms_span']} (ratio {chk['ratio']}). Check the units "
+                "(DIALux exports metres) and use dialux_align or scale/dx/dy.")
+        if info["outside_all_rooms"]:
+            cs["assumptions"].append(
+                f"{info['outside_all_rooms']} imported luminaire(s) fall outside every room in the "
+                "model: check the alignment (dialux_align) or add the missing rooms.")
+        if info["types_without_watts"]:
+            cs["assumptions"].append(
+                f"No wattage for {info['types_without_watts']}: supply luminaire_list or "
+                "watts_by_type; the lighting schedule will show them as missing.")
+        cs["assumptions"].append(
+            f"Imported from {Path(path).name}; positions as exported by DIALux, transformed with "
+            f"{t}. Values are as supplied, not verified.")
+        STORE.save_changeset(cs)
+        return {**planner.describe(cs, m), "found_in_file": len(found),
+                "by_block": dict(Counter(f["block"] for f in found)), **info,
+                "transform": t, "removed_previous": remove}
+
+    return _guard(run)
+
+
+@mcp.tool()
+def lighting_schedule(project: str, floor: str, watts_by_type: dict[str, float] | None = None,
+                      unit_to_m: float | None = None) -> dict[str, Any]:
+    """Lighting schedule for a floor from the model: luminaire counts by type per room, installed
+    wattage per room and floor (and W/m2 when room area is known). Wattage comes from the device
+    (e.g. imported from DIALux) or watts_by_type; luminaires without one are reported as missing,
+    never guessed. unit_to_m = metres per drawing unit (0.001 for a millimetre drawing). This is
+    installed load only: no demand factor, no lux calculation."""
+    m = _model(project, floor)
+    return _guard(lambda: dialux.lighting_schedule(m, watts_by_type, unit_to_m))
+
 # --------------------------------------------------------------------------- live editing
 _LIVE: LiveSession | None = None
 
@@ -553,6 +665,46 @@ def live_place(
     Same type at the same spot is not duplicated. One undo step."""
     safe_name(floor, "floor")
     return _guard(lambda: _plan().place(floor, type, x, y, rotation, circuit, db, room))
+
+
+@mcp.tool()
+def live_import_luminaires(
+    floor: str, path: str, block_names: list[str] | None = None, layers: list[str] | None = None,
+    include_nested: bool = False, dx: float = 0.0, dy: float = 0.0, rotation: float = 0.0,
+    scale: float = 1.0, transform: dict[str, float] | None = None,
+    type_map: dict[str, str] | None = None, luminaire_list: str | None = None,
+    watts_by_type: dict[str, float] | None = None, circuit: str | None = None,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """LIVE: draw luminaires from a DIALux DWG/DXF export into the OPEN AutoCAD drawing, as one
+    undo step. Same parameters as dialux_import. dry_run=true (default) only reports what would be
+    drawn (counts per block, first positions); call again with dry_run=false to draw. Already placed
+    luminaires at the same spot are skipped."""
+    safe_name(floor, "floor")
+
+    def run():
+        live = _plan()
+        t = _transform(dx, dy, rotation, scale, transform)
+        found = dialux.extract(path, block_names, layers, include_nested, t)
+        if not found:
+            raise ValueError("No matching blocks found. Check block_names/layers with dialux_inspect.")
+        specs = dialux.specs_from_list(dialux.read_luminaire_list(luminaire_list)) \
+            if luminaire_list else {}
+        tag = f"dialux:{Path(path).name}:{dialux.sha256_file(path)[:8]}"
+        devs, info = dialux.build_device_specs({"rooms": []}, found, type_map, specs,
+                                               watts_by_type, circuit, tag)
+        report = {"found_in_file": len(found), "by_block": dict(Counter(f["block"] for f in found)),
+                  "types_without_watts": info["types_without_watts"], "transform": t,
+                  "first_positions": [[d["x"], d["y"]] for d in devs[:10]]}
+        if dry_run:
+            return {"dry_run": True, **report, "next": "call again with dry_run=false to draw"}
+        items = [{"type": d["type"], "x": d["x"], "y": d["y"], "rotation": d["rotation"],
+                  "circuit": d["circuit"],
+                  "extra": {k: d[k] for k in ("luminaire_type", "watts", "lumens", "source")
+                            if d.get(k) is not None}} for d in devs]
+        return {"dry_run": False, **report, **live.place_many(floor, items)}
+
+    return _guard(run)
 
 
 @mcp.tool()

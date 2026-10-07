@@ -16,6 +16,7 @@ Ask in plain language: *"add a socket on the north wall of the Classroom, put it
 | --- | --- |
 | **Live editing** | Edits the drawing **open in AutoCAD / AutoCAD Electrical** through COM: place, move, delete and re-route devices, add text, zoom to show you, undo one chat instruction at a time. Works on your existing drawings: `live_adopt` gives their symbols stable ids without changing the geometry. |
 | **Offline drawing generation** | No AutoCAD needed. Builds four views per floor (architectural, lighting, power/socket/AC, combined) from one floor model, with safe preview → apply → undo, and exports DXF, PNG, A3 PDF and a `manifest.json` (DWG with live AutoCAD or the ODA File Converter). |
+| **DIALux import** | Imports a DIALux DWG/DXF layout (luminaire blocks) into the model or straight into the open AutoCAD drawing, aligns it to your architecture, attaches wattage from a luminaire list, and produces a lighting schedule. See [docs/dialux.md](docs/dialux.md). |
 | **Schematic mode** | Optional, off by default. Reads AutoCAD Electrical schematics (components, tags, wire numbers) and probes your install's AutoLISP commands. Writing schematic content is the next step. |
 | **Validation** | Unique ids, circuits of the right kind on an existing DB, routes tied to circuits in the model, devices inside their rooms, layers present, architecture unchanged vs the reference, files reopen, hand edits detected. |
 
@@ -53,7 +54,7 @@ Step-by-step with troubleshooting: [docs/windows-setup.md](docs/windows-setup.md
 git clone https://github.com/Dulaj-04/autocad-electrical-mcp.git && cd autocad-electrical-mcp
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e .
-acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 44 tools"
+acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 50 tools"
 acad-electrical-mcp --make-sample sample_floor.dxf     # optional demo drawing
 ```
 Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKSPACE` or `--workspace`).
@@ -102,7 +103,7 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 
 ## Commands
 
-### MCP tools (44) — what the assistant can call
+### MCP tools (50) — what the assistant can call
 Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated from the running server).
 
 | Group | Tool | What it does |
@@ -114,6 +115,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 | | `live_list_devices` | Tracked devices/routes with live positions; flags hand-moved or deleted ones. |
 | | `live_texts` | Read TEXT (room names, labels) with positions. |
 | | `live_place` | Draw a luminaire / switch / socket / data / ac / emergency / db symbol at x,y. Idempotent. |
+| | `live_import_luminaires` | Draw a DIALux export's luminaires into the open drawing as ONE undo step (dry run first). |
 | | `live_move` | Move a device to x,y or by dx,dy; marks its routes stale. |
 | | `live_delete` | Delete a tracked device. |
 | | `live_assign` | Record a device's circuit and DB. |
@@ -133,6 +135,11 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 | | `inspect_drawing` | Inventory a generated view. |
 | | `list_devices` / `list_floors` | Show the floor model / the project's floors. |
 | | `get_preview_image` | Render a PNG of a view. |
+| **DIALux import** (offline) | `dialux_inspect` | Look inside a DIALux DWG/DXF export: block names, counts, layers, attributes, units. Run first. |
+| | `dialux_align` | Shift/rotation/scale that maps the DIALux file onto your architectural drawing, from two matching points. |
+| | `import_luminaire_list` | Read a DIALux/Excel luminaire list (CSV/XLSX): type, quantity, wattage, flux. Missing wattage is reported, never guessed. |
+| | `dialux_import` | Import luminaires into the floor model as a changeset (rooms assigned, wattage attached, re-import updates in place, scale/units check). |
+| | `lighting_schedule` | Luminaires and installed watts per room and floor (W/m² when areas are known), flagging missing wattages. |
 | **Prepare** | `prepare_floor_model` | Register the architectural reference and rooms; reports name differences instead of overwriting. |
 | | `prepare_template` | Layer colours/lineweights, symbol and text size, status note, title block. |
 | **Plan** | `plan_devices` | Propose devices; repeats create no duplicates. |
@@ -187,6 +194,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 │   ├── live.py                    LIVE editing of the open AutoCAD drawing (COM)
 │   ├── schematic.py               AutoCAD Electrical schematic read + AutoLISP probe
 │   ├── symbols.py                 plan-symbol geometry in your reference style
+│   ├── dialux.py                  DIALux export import, alignment, luminaire list, lighting schedule
 │   ├── planner.py  model.py       changesets and the floor model store (offline)
 │   ├── views.py  export.py        generate the four views; DXF/PNG/PDF/manifest
 │   ├── validate.py  inspection.py checks and drawing inventory
@@ -198,6 +206,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 │   └── gen_tool_docs.py           builds docs/tools.md from the server
 ├── docs/
 │   ├── windows-setup.md           install + troubleshooting
+│   ├── dialux.md                  importing a DIALux lighting layout
 │   ├── live.md                    live mode and schematic mode guide
 │   └── tools.md                   every tool and parameter (generated)
 ├── examples/claude_desktop_config.json
@@ -208,6 +217,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 - **Verified by automated tests (CI on Python 3.10 and 3.12):** the offline workflow (planning, guarded apply, idempotence, stale/hand-edit conflicts, undo, sync, DXF/PNG/PDF/manifest export, reopen validation); the MCP protocol over stdio; the live and schematic logic against an in-memory simulation of AutoCAD's object model, including your real 4F drawing loaded into it (68 luminaires, 33 sockets, 11 emergency symbols, 9 AC units and 4 switches recognised).
 - **Confirmed on a real PC:** the server installs on Windows and Claude Desktop lists and runs its tools. `live_selftest` passed on **AutoCAD Electrical 2026**: it placed a board and a luminaire, moved one, drew a route, read everything back and cleaned up, leaving the existing drawing contents (devices and routes) untouched.
 - **Not yet individually confirmed on real AutoCAD:** `live_adopt`, `live_delete`, `live_undo`, `live_zoom`, `live_texts`, `live_add_text`, `live_add_polyline`, `live_save`, and the `sch_*` schematic tools (the AutoLISP link itself works on real AutoCAD). Try them on a scratch copy first and report any error text.
+- **DIALux import:** tested on synthetic DIALux-style exports (block inserts with attributes, nested blocks, metres, shifted/rotated frames), including the live one-undo-step import. **Not yet run on a real DIALux export**; send one and the importer can be adjusted to its exact structure.
 - **Not built yet:** inserting AutoCAD Electrical schematic components, drawing connected wires, wire numbering, reports. These must call Electrical's own commands, so they will be built from `sch_probe` output for your version. Model space only (no layouts yet).
 - **Out of scope:** DIALux, load/cable/protection schedules, SLD and BOQ. Floor-plan routes are drawing geometry, not an Electrical wire network.
 - DWG output offline needs the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter); otherwise `export_package` lists DWG as skipped with the reason.

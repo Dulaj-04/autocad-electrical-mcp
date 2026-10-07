@@ -1,6 +1,6 @@
 # Tool reference
 
-All 44 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
+All 50 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
 
 Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates are in the drawing's units.
 
@@ -10,8 +10,9 @@ Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates 
 | Prepare | `prepare_floor_model`, `prepare_template` |
 | Plan | `plan_devices`, `propose_lighting_grid`, `set_circuit_assignment`, `plan_routes` |
 | Apply, undo, sync | `preview_changes`, `apply_changes`, `undo_last`, `sync_from_drawing` |
+| DIALux import and lighting schedule | `dialux_inspect`, `dialux_align`, `import_luminaire_list`, `dialux_import`, `lighting_schedule` |
 | Output | `generate_views`, `export_package`, `validate_drawing` |
-| Live editing (plan symbols) | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save` |
+| Live editing (plan symbols) | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_import_luminaires`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save` |
 | Mode switch | `live_set_mode` |
 | Schematic mode (AutoCAD Electrical) | `sch_detect`, `sch_check_commands`, `sch_modules`, `sch_read`, `sch_probe`, `sch_run_lisp` |
 | AutoCAD utilities (Windows) | `acad_status`, `acad_open`, `acad_run_command` |
@@ -191,6 +192,76 @@ Adopt manual edits: read device positions from an edited output DXF back into th
 | `view` | `lighting` \| `power` \| `combined` | no | `combined` |
 | `remove_missing` | boolean | no | `False` |
 
+## DIALux import and lighting schedule
+
+Bring a DIALux lighting layout into the floor model and total the lighting load. Guide: docs/dialux.md.
+
+### `dialux_inspect`
+
+Look inside a DIALux DWG/DXF export (read-only): block names with counts, layers, attributes, positions and units. Run this first, then choose which block names are luminaires for dialux_import. DWG needs the ODA File Converter on this machine; otherwise save/export it as DXF. Set include_nested=true if the luminaires sit inside one big block.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `path` | string | yes |  |
+| `include_nested` | boolean | no | `False` |
+
+### `dialux_align`
+
+Work out the transform (shift, rotation, scale) that maps the DIALux export onto the architectural drawing, from two points you can identify in both (e.g. two column corners): source_a/b in the DIALux file, target_a/b in the architectural drawing. Pass the result as `transform` to dialux_import. 'residual' is the leftover error at the second point (drawing units); a large value means the points do not match.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `source_a` | list of number | yes |  |
+| `source_b` | list of number | yes |  |
+| `target_a` | list of number | yes |  |
+| `target_b` | list of number | yes |  |
+
+### `import_luminaire_list`
+
+Read a luminaire list (CSV, or XLSX with openpyxl) exported from DIALux or Excel: type/name, quantity, wattage and luminous flux, with the columns detected automatically (override with columns={'type': 'Header', 'watts': 'Header', ...}). Read-only. Wattage is never invented: types without one are listed in missing_watts.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `path` | string | yes |  |
+| `sheet` | string | no | `None` |
+| `columns` | object | no | `None` |
+
+### `dialux_import`
+
+Import luminaires from a DIALux DWG/DXF export into the floor model as a CHANGESET (nothing is drawn until apply_changes). block_names/layers choose what to import (see dialux_inspect); dx/dy/rotation/scale or `transform` (from dialux_align) position it on the architectural drawing; type_map maps block names to device types (default luminaire; e.g. {'EXIT_SIGN': 'emergency'}); luminaire_list (CSV/XLSX path) and/or watts_by_type supply wattage and lumens; rooms are assigned from the model's room bounds. Re-importing updates in place, no duplicates; replace_previous=true also removes earlier DIALux devices that are no longer in the file.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `floor` | string | yes |  |
+| `path` | string | yes |  |
+| `block_names` | list of string | no | `None` |
+| `layers` | list of string | no | `None` |
+| `include_nested` | boolean | no | `False` |
+| `dx` | number | no | `0.0` |
+| `dy` | number | no | `0.0` |
+| `rotation` | number | no | `0.0` |
+| `scale` | number | no | `1.0` |
+| `transform` | object | no | `None` |
+| `type_map` | object | no | `None` |
+| `luminaire_list` | string | no | `None` |
+| `watts_by_type` | object | no | `None` |
+| `circuit` | string | no | `None` |
+| `label_attribute` | string | no | `None` |
+| `replace_previous` | boolean | no | `False` |
+| `tolerance` | number | no | `0.01` |
+
+### `lighting_schedule`
+
+Lighting schedule for a floor from the model: luminaire counts by type per room, installed wattage per room and floor (and W/m2 when room area is known). Wattage comes from the device (e.g. imported from DIALux) or watts_by_type; luminaires without one are reported as missing, never guessed. unit_to_m = metres per drawing unit (0.001 for a millimetre drawing). This is installed load only: no demand factor, no lux calculation.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `floor` | string | yes |  |
+| `watts_by_type` | object | no | `None` |
+| `unit_to_m` | number | no | `None` |
+
 ## Output
 
 Generate the drawing views and the export package.
@@ -290,6 +361,28 @@ LIVE: draw a device symbol (reference style, correct layer) at x,y in the open d
 | `circuit` | string | no | `None` |
 | `db` | string | no | `None` |
 | `room` | string | no | `None` |
+
+### `live_import_luminaires`
+
+LIVE: draw luminaires from a DIALux DWG/DXF export into the OPEN AutoCAD drawing, as one undo step. Same parameters as dialux_import. dry_run=true (default) only reports what would be drawn (counts per block, first positions); call again with dry_run=false to draw. Already placed luminaires at the same spot are skipped.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `floor` | string | yes |  |
+| `path` | string | yes |  |
+| `block_names` | list of string | no | `None` |
+| `layers` | list of string | no | `None` |
+| `include_nested` | boolean | no | `False` |
+| `dx` | number | no | `0.0` |
+| `dy` | number | no | `0.0` |
+| `rotation` | number | no | `0.0` |
+| `scale` | number | no | `1.0` |
+| `transform` | object | no | `None` |
+| `type_map` | object | no | `None` |
+| `luminaire_list` | string | no | `None` |
+| `watts_by_type` | object | no | `None` |
+| `circuit` | string | no | `None` |
+| `dry_run` | boolean | no | `True` |
 
 ### `live_move`
 
