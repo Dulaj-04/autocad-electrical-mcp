@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import logging
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -14,11 +14,11 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from . import __version__, export, inspection, planner, template, validate
 from .backends import autocad_backend
-from .live import LiveSession, RealCom
-from .schematic import Schematic
 from .backends.base import BackendError
 from .config import Config, safe_name
+from .live import LiveSession, RealCom
 from .model import Store, sha256_file
+from .schematic import Schematic
 from .template import VIEWS
 
 logging.getLogger("ezdxf").setLevel(logging.ERROR)  # quiet stderr (stdio transport)

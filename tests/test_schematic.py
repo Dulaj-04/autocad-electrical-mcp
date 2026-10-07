@@ -1,9 +1,10 @@
 import pytest
-from fake_acad import App
+
 from acad_electrical_mcp import server
 from acad_electrical_mcp.backends.base import BackendError
 from acad_electrical_mcp.live import LiveSession, PlainCom
 from acad_electrical_mcp.schematic import Schematic
+from fake_acad import App
 
 
 @pytest.fixture()

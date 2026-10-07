@@ -1,7 +1,8 @@
 import pytest
-from fake_acad import App
+
 from acad_electrical_mcp.live import LiveSession, PlainCom
 from acad_electrical_mcp.symbols import symbol_segments
+from fake_acad import App
 
 
 @pytest.fixture()
