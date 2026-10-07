@@ -87,6 +87,13 @@ Then in ChatGPT: *Settings → Connectors → (enable Developer mode) → Create
 ChatGPT plan. The HTTP endpoint has **no authentication**; do not expose it publicly beyond a
 short-lived tunnel, and keep `ACAD_MCP_ALLOW_COMMANDS` unset.
 
+## Live mode: edit the drawing open in AutoCAD while you chat
+
+Windows + AutoCAD / AutoCAD Electrical running with a drawing open. The `live_*` tools edit
+that **open drawing directly** (no export step), so every instruction in the chat appears on
+screen, and you can keep adjusting: *"move the DB to the corridor", "add a socket on the north
+wall of the Classroom", "re-route L03", "undo that"*. Full guide: [docs/live.md](docs/live.md).
+
 ## Troubleshooting
 
 First prove the server itself works, independent of any client:
@@ -118,6 +125,7 @@ acad-electrical-mcp --selftest      # prints "SELFTEST OK ... 20 tools" and exit
 | Plan | `plan_devices`, `propose_lighting_grid`, `set_circuit_assignment`, `plan_routes` |
 | Safe write | `preview_changes`, `apply_changes`, `undo_last`, `sync_from_drawing` |
 | Output | `generate_views`, `export_package`, `validate_drawing` |
+| **Live editing (Windows)** | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save` |
 | Live AutoCAD (Windows) | `acad_status`, `acad_open`, `acad_run_command` (disabled unless `ACAD_MCP_ALLOW_COMMANDS=1`) |
 
 Device types: `luminaire`, `switch`, `socket`, `data`, `ac`, `emergency`, `db`. Layers (all
@@ -140,7 +148,7 @@ reference hash unchanged; label overlaps; status note; files reopen; manual edit
 - **Verified** (automated tests, CI): the `dxf` backend end to end — planning, guarded apply,
   repeat-run idempotence, stale/manual-edit conflicts, undo, sync, export of DXF/PNG/PDF/manifest,
   reopen validation, and the stdio MCP protocol; HTTP transport starts and answers `initialize`.
-- **Not verified**: the `autocad` COM backend has not been run against a licensed AutoCAD
+- **Not verified**: the live COM tools (`live_*`) and the `autocad` backend are tested only against an in-memory fake of the AutoCAD object model and against your reference drawings loaded into it; run `live_selftest` on a scratch drawing first. The `autocad` COM backend has not been run against a licensed AutoCAD
   Electrical host (it cannot run in CI). Treat it as experimental and test on a disposable copy.
   Native DWG output without it needs the ODA File Converter; otherwise `export_package` reports
   DWG as skipped with the reason.

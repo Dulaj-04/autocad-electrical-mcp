@@ -17,7 +17,7 @@ def test_stdio_roundtrip(tmp_path):
         async with stdio_client(params) as (r, w), ClientSession(r, w) as sess:
             await sess.initialize()
             tools = {t.name for t in (await sess.list_tools()).tools}
-            assert {"plan_devices", "apply_changes", "export_package", "validate_drawing",
+            assert {"live_place", "live_connect", "plan_devices", "apply_changes", "export_package", "validate_drawing",
                     "preview_changes", "undo_last", "acad_status"} <= tools
             await sess.call_tool("prepare_floor_model", {
                 "project": "p", "floor": "1F",

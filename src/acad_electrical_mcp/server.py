@@ -14,6 +14,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from . import __version__, export, inspection, planner, template, validate
 from .backends import autocad_backend
+from .live import LiveSession, RealCom
 from .backends.base import BackendError
 from .config import Config, safe_name
 from .model import Store, sha256_file
@@ -33,6 +34,15 @@ plan_devices / propose_lighting_grid / set_circuit_assignment / plan_routes (eac
 changeset) -> preview_changes -> apply_changes (regenerates the DXF views) ->
 validate_drawing -> export_package (DXF/DWG/PNG/PDF + manifest.json).
 Reference drawings are never modified; outputs go to the workspace output folder.
+
+LIVE MODE (Windows, drawing open in AutoCAD / AutoCAD Electrical): when the user wants to work
+on the open drawing and see changes on screen, use the live_* tools instead: live_connect first,
+then live_scan / live_adopt (give existing symbols ids), live_texts (room names and positions),
+live_place / live_move / live_delete / live_assign / live_route, live_zoom to show the change,
+live_undo to revert one instruction. Each call edits the open drawing immediately; keep steps
+small and tell the user what changed. These draw plan-level geometry, not Electrical schematic
+components. Check unit_scale_vs_mm from live_connect: reference drawings are in millimetres
+even when the header says metres.
 Always pass explicit project and floor ids (letters, digits, '_' and '-' only).
 """
 
@@ -386,6 +396,150 @@ def acad_run_command(command: str) -> dict[str, Any]:
         return autocad_backend.run_command(command)
     except BackendError as exc:
         raise ValueError(str(exc)) from exc
+
+
+
+# --------------------------------------------------------------------------- live editing
+_LIVE: LiveSession | None = None
+
+
+def _live() -> LiveSession:
+    """Session bound to the drawing currently open in AutoCAD (created on first use)."""
+    global _LIVE
+    if _LIVE is None:
+        _LIVE = LiveSession(RealCom(), CFG.workspace / "live")
+    return _LIVE
+
+
+def _guard(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except BackendError as exc:
+        raise ValueError(str(exc)) from exc
+    except ValueError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - surface COM errors readably to the assistant
+        raise ValueError(f"AutoCAD call failed: {type(exc).__name__}: {exc}") from exc
+
+
+@mcp.tool()
+def live_connect() -> dict[str, Any]:
+    """LIVE (Windows): attach to the drawing open in AutoCAD / AutoCAD Electrical and report its
+    name, entity counts per layer and unit scale. Start here. All live_* tools edit the open
+    drawing directly, so the user sees every change on screen."""
+    return _guard(lambda: _live().connect())
+
+
+@mcp.tool()
+def live_selftest() -> dict[str, Any]:
+    """LIVE: prove the connection works. Creates a DB, luminaire and route on the ACTIVE drawing,
+    moves and reads them back, then removes them. Run on a scratch drawing the first time."""
+    return _guard(lambda: _live().selftest())
+
+
+@mcp.tool()
+def live_scan(layers: list[str] | None = None) -> dict[str, Any]:
+    """LIVE: find symbols in the open drawing (loose LINEs that touch are clustered per device
+    layer, as in the reference drawings). Returns type, centre and size of each, not yet tracked."""
+    cl = _guard(lambda: _live().scan(layers))
+    by: dict[str, int] = {}
+    for c in cl:
+        by[c["layer"]] = by.get(c["layer"], 0) + 1
+    return {"count": len(cl), "by_layer": by, "symbols": cl[:300]}
+
+
+@mcp.tool()
+def live_adopt(floor: str, layers: list[str] | None = None, min_size: float = 0.0,
+               max_size: float = 1e12) -> dict[str, Any]:
+    """LIVE: give the existing symbols in the open drawing stable ids (e.g. 4F-LUM-01, DB-4F) by
+    grouping them, so they can be moved, deleted or assigned by id. Geometry is not changed.
+    Use min_size/max_size (drawing units) to skip tiny pieces such as socket pins."""
+    safe_name(floor, "floor")
+    return _guard(lambda: _live().adopt(floor, layers, min_size, max_size))
+
+
+@mcp.tool()
+def live_list_devices() -> dict[str, Any]:
+    """LIVE: tracked devices/routes with positions read fresh from the drawing (flags devices
+    the user moved by hand, and ones deleted by hand)."""
+    return _guard(lambda: _live().list_devices())
+
+
+@mcp.tool()
+def live_texts(layer: str | None = None, contains: str | None = None) -> dict[str, Any]:
+    """LIVE: read TEXT in the open drawing with positions (e.g. layer 'TEXT' for room names, to
+    work out where a room is before placing devices)."""
+    return {"texts": _guard(lambda: _live().texts(layer, contains))}
+
+
+@mcp.tool()
+def live_place(
+    floor: str, type: Literal["luminaire", "switch", "socket", "data", "ac", "emergency", "db"],
+    x: float, y: float, rotation: float = 0.0, circuit: str | None = None,
+    db: str | None = None, room: str | None = None,
+) -> dict[str, Any]:
+    """LIVE: draw a device symbol (reference style, correct layer) at x,y in the open drawing now.
+    Same type at the same spot is not duplicated. One undo step."""
+    safe_name(floor, "floor")
+    return _guard(lambda: _live().place(floor, type, x, y, rotation, circuit, db, room))
+
+
+@mcp.tool()
+def live_move(device_id: str, x: float | None = None, y: float | None = None,
+              dx: float | None = None, dy: float | None = None) -> dict[str, Any]:
+    """LIVE: move a tracked device to x,y or by dx,dy. Routes through it are flagged stale."""
+    return _guard(lambda: _live().move(device_id, x, y, dx, dy))
+
+
+@mcp.tool()
+def live_delete(device_id: str) -> dict[str, Any]:
+    """LIVE: delete a tracked device from the open drawing (one undo step)."""
+    return _guard(lambda: _live().delete(device_id))
+
+
+@mcp.tool()
+def live_assign(device_id: str, circuit: str, db: str | None = None) -> dict[str, Any]:
+    """LIVE: record which circuit / distribution board a device belongs to."""
+    return _guard(lambda: _live().assign(device_id, circuit, db))
+
+
+@mcp.tool()
+def live_route(circuit: str, kind: Literal["lighting", "power", "ac"],
+               device_ids: list[str] | None = None, db: str | None = None,
+               label: bool = True) -> dict[str, Any]:
+    """LIVE: draw (or redraw, replacing the old one) an orthogonal route from the DB through the
+    circuit's devices on the lighting/power/AC wiring layer, labelled with the circuit id."""
+    return _guard(lambda: _live().route(circuit, kind, device_ids, db, label))
+
+
+@mcp.tool()
+def live_add_text(layer: str, text: str, x: float, y: float, height: float) -> dict[str, Any]:
+    """LIVE: add a TEXT note/label to the open drawing."""
+    return _guard(lambda: _live().add_text(layer, text, x, y, height))
+
+
+@mcp.tool()
+def live_add_polyline(layer: str, points: list[list[float]]) -> dict[str, Any]:
+    """LIVE: draw a polyline [[x,y],...] on a layer in the open drawing."""
+    return _guard(lambda: _live().add_polyline(layer, points))
+
+
+@mcp.tool()
+def live_zoom(x: float, y: float, width: float) -> dict[str, Any]:
+    """LIVE: pan/zoom AutoCAD's view to x,y so the user can see the change."""
+    return _guard(lambda: _live().zoom(x, y, width))
+
+
+@mcp.tool()
+def live_undo() -> dict[str, Any]:
+    """LIVE: undo the last chat instruction in AutoCAD (each live_* call is one undo step)."""
+    return _guard(lambda: _live().undo())
+
+
+@mcp.tool()
+def live_save(path: str | None = None) -> dict[str, Any]:
+    """LIVE: save the open drawing (or Save As to path)."""
+    return _guard(lambda: _live().save(path))
 
 
 # --------------------------------------------------------------------------- CLI
