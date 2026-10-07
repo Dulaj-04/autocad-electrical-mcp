@@ -126,6 +126,7 @@ acad-electrical-mcp --selftest      # prints "SELFTEST OK ... 20 tools" and exit
 | Safe write | `preview_changes`, `apply_changes`, `undo_last`, `sync_from_drawing` |
 | Output | `generate_views`, `export_package`, `validate_drawing` |
 | **Live editing (Windows)** | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save` |
+| **Schematic mode (Windows, AutoCAD Electrical)** | `live_set_mode`, `sch_detect`, `sch_read`, `sch_probe`, `sch_run_lisp` (read/probe only for now) |
 | Live AutoCAD (Windows) | `acad_status`, `acad_open`, `acad_run_command` (disabled unless `ACAD_MCP_ALLOW_COMMANDS=1`) |
 
 Device types: `luminaire`, `switch`, `socket`, `data`, `ac`, `emergency`, `db`. Layers (all

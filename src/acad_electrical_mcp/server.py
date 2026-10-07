@@ -15,6 +15,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from . import __version__, export, inspection, planner, template, validate
 from .backends import autocad_backend
 from .live import LiveSession, RealCom
+from .schematic import Schematic
 from .backends.base import BackendError
 from .config import Config, safe_name
 from .model import Store, sha256_file
@@ -41,7 +42,9 @@ then live_scan / live_adopt (give existing symbols ids), live_texts (room names 
 live_place / live_move / live_delete / live_assign / live_route, live_zoom to show the change,
 live_undo to revert one instruction. Each call edits the open drawing immediately; keep steps
 small and tell the user what changed. These draw plan-level geometry, not Electrical schematic
-components. Check unit_scale_vs_mm from live_connect: reference drawings are in millimetres
+components. SCHEMATIC MODE: only when the user asks to work with AutoCAD Electrical schematics, call
+live_set_mode('schematic'), then sch_detect / sch_read / sch_probe. Otherwise stay in plan mode.
+Check unit_scale_vs_mm from live_connect: reference drawings are in millimetres
 even when the header says metres.
 Always pass explicit project and floor ids (letters, digits, '_' and '-' only).
 """
@@ -422,6 +425,59 @@ def _guard(fn, *a, **kw):
         raise ValueError(f"AutoCAD call failed: {type(exc).__name__}: {exc}") from exc
 
 
+def _plan() -> LiveSession:
+    live = _live()
+    if live.mode != "plan":
+        raise ValueError("Schematic mode is on, so plan-level drawing tools are disabled. Use the "
+                         "sch_* tools, or call live_set_mode('plan') to go back.")
+    return live
+
+
+@mcp.tool()
+def live_set_mode(mode: Literal["plan", "schematic"]) -> dict[str, Any]:
+    """Choose what the live tools work with. 'plan' (default): floor-plan symbols and routes
+    (live_place, live_route...). 'schematic': AutoCAD Electrical schematics (sch_* tools); the
+    plan-level drawing tools are then blocked so the two are never mixed by accident. Only switch
+    to 'schematic' when the user asks to work with schematics."""
+    live = _live()
+    live.mode = mode
+    return {"mode": mode, "use": "sch_detect, sch_read, sch_probe" if mode == "schematic"
+            else "live_place, live_move, live_route, ..."}
+
+
+@mcp.tool()
+def sch_detect() -> dict[str, Any]:
+    """SCHEMATIC: check the open drawing / AutoCAD Electrical: product and version, whether the
+    Electrical commands are loaded, whether the AutoLISP bridge works, and how many components,
+    wire numbers and wire lines the drawing has. Run this first in schematic mode."""
+    return _guard(lambda: Schematic(_live()).detect())
+
+
+@mcp.tool()
+def sch_read(include_wires: bool = True, limit: int = 500) -> dict[str, Any]:
+    """SCHEMATIC: read the open schematic: components (tag, description, installation, location,
+    manufacturer, catalog, terminals), wire numbers and wire-layer line counts. Read-only."""
+    return _guard(lambda: Schematic(_live()).read(include_wires, limit))
+
+
+@mcp.tool()
+def sch_probe(prefix: str = "c:ae", limit: int = 400) -> dict[str, Any]:
+    """SCHEMATIC: list the AutoLISP functions/commands this AutoCAD Electrical install exposes whose
+    name starts with prefix (try c:ae, c:wd, c:ace, wd_, ace_). Read-only; used to learn the real
+    command names before insert/wire tools are built."""
+    return _guard(lambda: Schematic(_live()).probe(prefix, limit))
+
+
+@mcp.tool()
+def sch_run_lisp(expression: str) -> dict[str, Any]:
+    """SCHEMATIC (advanced): evaluate an AutoLISP expression in the open drawing and return its
+    printed result. Can change the drawing, so it is disabled unless the server was started with
+    ACAD_MCP_ALLOW_COMMANDS=1."""
+    if not CFG.allow_commands:
+        raise ValueError("sch_run_lisp is disabled. Start the server with ACAD_MCP_ALLOW_COMMANDS=1.")
+    return {"result": _guard(lambda: Schematic(_live()).lisp(expression))}
+
+
 @mcp.tool()
 def live_connect() -> dict[str, Any]:
     """LIVE (Windows): attach to the drawing open in AutoCAD / AutoCAD Electrical and report its
@@ -455,7 +511,7 @@ def live_adopt(floor: str, layers: list[str] | None = None, min_size: float = 0.
     grouping them, so they can be moved, deleted or assigned by id. Geometry is not changed.
     Use min_size/max_size (drawing units) to skip tiny pieces such as socket pins."""
     safe_name(floor, "floor")
-    return _guard(lambda: _live().adopt(floor, layers, min_size, max_size))
+    return _guard(lambda: _plan().adopt(floor, layers, min_size, max_size))
 
 
 @mcp.tool()
@@ -481,26 +537,26 @@ def live_place(
     """LIVE: draw a device symbol (reference style, correct layer) at x,y in the open drawing now.
     Same type at the same spot is not duplicated. One undo step."""
     safe_name(floor, "floor")
-    return _guard(lambda: _live().place(floor, type, x, y, rotation, circuit, db, room))
+    return _guard(lambda: _plan().place(floor, type, x, y, rotation, circuit, db, room))
 
 
 @mcp.tool()
 def live_move(device_id: str, x: float | None = None, y: float | None = None,
               dx: float | None = None, dy: float | None = None) -> dict[str, Any]:
     """LIVE: move a tracked device to x,y or by dx,dy. Routes through it are flagged stale."""
-    return _guard(lambda: _live().move(device_id, x, y, dx, dy))
+    return _guard(lambda: _plan().move(device_id, x, y, dx, dy))
 
 
 @mcp.tool()
 def live_delete(device_id: str) -> dict[str, Any]:
     """LIVE: delete a tracked device from the open drawing (one undo step)."""
-    return _guard(lambda: _live().delete(device_id))
+    return _guard(lambda: _plan().delete(device_id))
 
 
 @mcp.tool()
 def live_assign(device_id: str, circuit: str, db: str | None = None) -> dict[str, Any]:
     """LIVE: record which circuit / distribution board a device belongs to."""
-    return _guard(lambda: _live().assign(device_id, circuit, db))
+    return _guard(lambda: _plan().assign(device_id, circuit, db))
 
 
 @mcp.tool()
@@ -509,19 +565,19 @@ def live_route(circuit: str, kind: Literal["lighting", "power", "ac"],
                label: bool = True) -> dict[str, Any]:
     """LIVE: draw (or redraw, replacing the old one) an orthogonal route from the DB through the
     circuit's devices on the lighting/power/AC wiring layer, labelled with the circuit id."""
-    return _guard(lambda: _live().route(circuit, kind, device_ids, db, label))
+    return _guard(lambda: _plan().route(circuit, kind, device_ids, db, label))
 
 
 @mcp.tool()
 def live_add_text(layer: str, text: str, x: float, y: float, height: float) -> dict[str, Any]:
     """LIVE: add a TEXT note/label to the open drawing."""
-    return _guard(lambda: _live().add_text(layer, text, x, y, height))
+    return _guard(lambda: _plan().add_text(layer, text, x, y, height))
 
 
 @mcp.tool()
 def live_add_polyline(layer: str, points: list[list[float]]) -> dict[str, Any]:
     """LIVE: draw a polyline [[x,y],...] on a layer in the open drawing."""
-    return _guard(lambda: _live().add_polyline(layer, points))
+    return _guard(lambda: _plan().add_polyline(layer, points))
 
 
 @mcp.tool()

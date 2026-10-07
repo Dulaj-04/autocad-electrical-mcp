@@ -40,11 +40,33 @@ The `live_*` tools talk to the running AutoCAD / AutoCAD Electrical through COM 
 > to circuit 4F-P02 on DB-4F. Redraw route 4F-P02. Zoom there.
 > Undo that. Move DB-4F 2 m left.
 
+## Schematic mode (AutoCAD Electrical)
+
+Default is **plan mode** (everything above). Only when you ask for schematics does the assistant
+switch: *"switch to schematic mode"* calls `live_set_mode('schematic')`. In that mode the plan-level
+drawing tools (`live_place`, `live_route`, ...) are blocked so the two are never mixed by accident;
+say *"back to plan mode"* to return.
+
+Available now (read-only, safe on a real project):
+- `sch_detect`: product/version, whether Electrical's commands are loaded, whether the AutoLISP
+  bridge works, counts of components / wire numbers / wire lines.
+- `sch_read`: components (tag, description, installation, location, manufacturer, catalog,
+  terminals), wire numbers, wire-layer line counts.
+- `sch_probe(prefix)`: lists the AutoLISP functions/commands your install exposes (`c:ae`, `c:wd`,
+  `c:ace`, `wd_`, `ace_`).
+- `sch_run_lisp(expression)`: advanced; off unless `ACAD_MCP_ALLOW_COMMANDS=1`.
+
+**Not built yet: inserting components, drawing connected wires, wire numbering, reports.** These
+must call AutoCAD Electrical's own commands, whose names/arguments differ by version, so they will
+be built from what `sch_probe` reports on *your* install plus a sample schematic.
+
+How the AutoLISP bridge works: the server sends an expression with `SendCommand` and reads the
+result back through the `USERS1` system variable in chunks. AutoCAD must be idle (no running
+command or dialog; press Esc first).
+
 ## Limits
-- These are **plan-level symbols**, not AutoCAD Electrical schematic components: no AE wire
-  numbers, component tags, project database or reports. `acad_run_command` (needs
-  `ACAD_MCP_ALLOW_COMMANDS=1`) can send AutoCAD/AE commands, and AE-specific automation can be
-  added once the workflow is agreed.
+- Plan mode draws **plan-level symbols**, not AutoCAD Electrical schematic components. Schematic
+  mode currently only reads and probes (see above); writing is the next step.
 - Model space only. No layouts/viewports yet.
 - Validated against an in-memory fake of AutoCAD's object model and your reference drawings, not
   yet against a live AutoCAD: report any COM error text so it can be fixed.

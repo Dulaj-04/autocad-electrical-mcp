@@ -117,6 +117,7 @@ class LiveSession:
     def __init__(self, com: Any, state_dir: Path) -> None:
         self.com = com
         self.state_dir = state_dir
+        self.mode = "plan"  # "plan" = plan-level symbols, "schematic" = AutoCAD Electrical schematic
 
     # ------------------------------------------------------------------ plumbing
     @property

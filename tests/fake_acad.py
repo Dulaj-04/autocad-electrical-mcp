@@ -27,6 +27,11 @@ class Ent:
         self.deleted = True
 
 
+class Att:
+    def __init__(self, tag, text):
+        self.TagString, self.TextString = tag, text
+
+
 class Collection(list):
     def __iter__(self):
         return iter([x for x in list.__iter__(self) if not getattr(x, "deleted", False)])
@@ -59,6 +64,8 @@ class Doc:
         self.Layers = Collection([Layer("0")])
         self.commands, self._marks, self._open = [], [], False
         self.insunits = 6
+        self.vars = {}
+        self.lisp_handler = lambda cmd: "nil"
 
     def _ms(self):
         ms = Collection()
@@ -93,6 +100,8 @@ class Doc:
 
     def SendCommand(self, cmd):
         self.commands.append(cmd)
+        if "*acm-r*" in cmd:
+            return self._lisp(cmd)
         if "UNDO" in cmd and self._marks:
             snap = self._marks.pop()
             keep = {id(e) for e, _ in snap}
@@ -105,7 +114,31 @@ class Doc:
                 g.items, g.deleted = items, deleted
 
     def GetVariable(self, name):
-        return self.insunits if name == "INSUNITS" else 0
+        if name == "INSUNITS":
+            return self.insunits
+        return self.vars.get(name, 0)
+
+    def SetVariable(self, name, value):
+        self.vars[name] = value
+
+    def add_block(self, name, pos, attrs, layer="SYMS"):
+        e = Ent("AcDbBlockReference", layer, InsertionPoint=(pos[0], pos[1], 0.0),
+                EffectiveName=name, HasAttributes=bool(attrs))
+        e.GetAttributes = lambda: [Att(k, v) for k, v in attrs.items()]
+        return self._add(e)
+
+    def _lisp(self, cmd):
+        import re
+        if "(setq *acm-r*" in cmd:
+            try:
+                self._acm = str(self.lisp_handler(cmd))
+            except Exception as exc:  # noqa: BLE001
+                self._acm = f"LISP ERROR: {exc}"
+            self.vars["USERS1"] = "OK:" + self._acm[:440]
+        else:
+            m = re.search(r"\(substr \*acm-r\* (\d+) (\d+)\)", cmd)
+            n = int(m.group(1))
+            self.vars["USERS1"] = "OK:" + self._acm[n - 1:n - 1 + int(m.group(2))]
 
     def Save(self):
         self.Saved = True
@@ -125,6 +158,7 @@ class Documents:
 
 class App:
     Version = "24.0"
+    Caption = "AutoCAD Electrical 2026 - [Drawing1.dwg]"
 
     def __init__(self, doc=None):
         self.docs = [doc or Doc()]
