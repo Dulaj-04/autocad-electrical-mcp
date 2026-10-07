@@ -53,7 +53,7 @@ Step-by-step with troubleshooting: [docs/windows-setup.md](docs/windows-setup.md
 git clone https://github.com/Dulaj-04/autocad-electrical-mcp.git && cd autocad-electrical-mcp
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e .
-acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 42 tools"
+acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 44 tools"
 acad-electrical-mcp --make-sample sample_floor.dxf     # optional demo drawing
 ```
 Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKSPACE` or `--workspace`).
@@ -102,7 +102,7 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 
 ## Commands
 
-### MCP tools (42) — what the assistant can call
+### MCP tools (44) — what the assistant can call
 Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated from the running server).
 
 | Group | Tool | What it does |
@@ -124,6 +124,8 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 | | `live_save` | Save, or Save As. |
 | **Mode** | `live_set_mode` | `plan` (default) or `schematic`. |
 | **Schematic** (AutoCAD Electrical) | `sch_detect` | Product/version, Electrical loaded?, AutoLISP bridge OK?, counts of components/wire numbers/wires. |
+| | `sch_check_commands` | Ask AutoCAD whether command names (e.g. `AEPROJECT`) are registered, including compiled Electrical commands. |
+| | `sch_modules` | List loaded compiled modules (ARX); shows whether Electrical's own modules are active. |
 | | `sch_read` | Components (tag, description, location, manufacturer, catalog, terminals), wire numbers, wire layers. |
 | | `sch_probe` | List the AutoLISP commands/functions your install exposes (`c:ae`, `c:wd`, …). |
 | | `sch_run_lisp` | Run AutoLISP (**off** unless `ACAD_MCP_ALLOW_COMMANDS=1`). |
@@ -205,7 +207,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 ## Status: what is verified
 - **Verified by automated tests (CI on Python 3.10 and 3.12):** the offline workflow (planning, guarded apply, idempotence, stale/hand-edit conflicts, undo, sync, DXF/PNG/PDF/manifest export, reopen validation); the MCP protocol over stdio; the live and schematic logic against an in-memory simulation of AutoCAD's object model, including your real 4F drawing loaded into it (68 luminaires, 33 sockets, 11 emergency symbols, 9 AC units and 4 switches recognised).
 - **Confirmed on a real PC:** the server installs on Windows and Claude Desktop lists and runs its tools. `live_selftest` passed on **AutoCAD Electrical 2026**: it placed a board and a luminaire, moved one, drew a route, read everything back and cleaned up, leaving the existing drawing contents (devices and routes) untouched.
-- **Not yet individually confirmed on real AutoCAD:** `live_adopt`, `live_delete`, `live_undo`, `live_zoom`, `live_texts`, `live_add_text`, `live_add_polyline`, `live_save`, and the AutoLISP return channel behind `sch_*`. Try them on a scratch copy first and report any error text.
+- **Not yet individually confirmed on real AutoCAD:** `live_adopt`, `live_delete`, `live_undo`, `live_zoom`, `live_texts`, `live_add_text`, `live_add_polyline`, `live_save`, and the `sch_*` schematic tools (the AutoLISP link itself works on real AutoCAD). Try them on a scratch copy first and report any error text.
 - **Not built yet:** inserting AutoCAD Electrical schematic components, drawing connected wires, wire numbering, reports. These must call Electrical's own commands, so they will be built from `sch_probe` output for your version. Model space only (no layouts yet).
 - **Out of scope:** DIALux, load/cable/protection schedules, SLD and BOQ. Floor-plan routes are drawing geometry, not an Electrical wire network.
 - DWG output offline needs the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter); otherwise `export_package` lists DWG as skipped with the reason.

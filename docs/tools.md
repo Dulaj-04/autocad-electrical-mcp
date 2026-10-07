@@ -1,6 +1,6 @@
 # Tool reference
 
-All 42 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
+All 44 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
 
 Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates are in the drawing's units.
 
@@ -13,7 +13,7 @@ Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates 
 | Output | `generate_views`, `export_package`, `validate_drawing` |
 | Live editing (plan symbols) | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save` |
 | Mode switch | `live_set_mode` |
-| Schematic mode (AutoCAD Electrical) | `sch_detect`, `sch_read`, `sch_probe`, `sch_run_lisp` |
+| Schematic mode (AutoCAD Electrical) | `sch_detect`, `sch_check_commands`, `sch_modules`, `sch_read`, `sch_probe`, `sch_run_lisp` |
 | AutoCAD utilities (Windows) | `acad_status`, `acad_open`, `acad_run_command` |
 
 ## Inspect
@@ -397,6 +397,20 @@ Read and probe only for now. Enabled with `live_set_mode('schematic')`.
 ### `sch_detect`
 
 SCHEMATIC: check the open drawing / AutoCAD Electrical: product and version, whether the Electrical commands are loaded, whether the AutoLISP bridge works, and how many components, wire numbers and wire lines the drawing has. Run this first in schematic mode.
+
+_No parameters._
+
+### `sch_check_commands`
+
+SCHEMATIC: ask AutoCAD whether each command name is registered (e.g. AEPROJECT). Unlike sch_probe this also sees commands provided by compiled Electrical modules. Read-only.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `names` | list of string | yes |  |
+
+### `sch_modules`
+
+SCHEMATIC: list the compiled modules (ARX) loaded in the open AutoCAD session; shows whether AutoCAD Electrical's own modules are active. Read-only.
 
 _No parameters._
 

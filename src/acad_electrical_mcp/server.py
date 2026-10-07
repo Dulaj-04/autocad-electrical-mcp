@@ -469,6 +469,21 @@ def sch_probe(prefix: str = "c:ae", limit: int = 400) -> dict[str, Any]:
 
 
 @mcp.tool()
+def sch_check_commands(names: list[str]) -> dict[str, Any]:
+    """SCHEMATIC: ask AutoCAD whether each command name is registered (e.g. AEPROJECT). Unlike
+    sch_probe this also sees commands provided by compiled Electrical modules. Read-only."""
+    return {"registered": _guard(lambda: Schematic(_live()).commands_exist(names))}
+
+
+@mcp.tool()
+def sch_modules() -> dict[str, Any]:
+    """SCHEMATIC: list the compiled modules (ARX) loaded in the open AutoCAD session; shows
+    whether AutoCAD Electrical's own modules are active. Read-only."""
+    mods = _guard(lambda: Schematic(_live()).arx_modules())
+    return {"count": len(mods), "modules": mods}
+
+
+@mcp.tool()
 def sch_run_lisp(expression: str) -> dict[str, Any]:
     """SCHEMATIC (advanced): evaluate an AutoLISP expression in the open drawing and return its
     printed result. Can change the drawing, so it is disabled unless the server was started with

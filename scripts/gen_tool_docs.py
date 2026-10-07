@@ -37,7 +37,7 @@ GROUPS: list[tuple[str, str, list[str]]] = [
      ["live_set_mode"]),
     ("Schematic mode (AutoCAD Electrical)",
      "Read and probe only for now. Enabled with `live_set_mode('schematic')`.",
-     ["sch_detect", "sch_read", "sch_probe", "sch_run_lisp"]),
+     ["sch_detect", "sch_check_commands", "sch_modules", "sch_read", "sch_probe", "sch_run_lisp"]),
     ("AutoCAD utilities (Windows)", "Direct AutoCAD COM helpers.",
      ["acad_status", "acad_open", "acad_run_command"]),
 ]
