@@ -8,3 +8,6 @@ build/
 dist/
 acad_mcp_workspace/
 *.bak
+
+# local assistant settings
+.claude/

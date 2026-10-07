@@ -1,169 +1,223 @@
 # acad-electrical-mcp
 
-An [MCP](https://modelcontextprotocol.io) server that lets Claude, ChatGPT or any MCP client
-**create, revise, validate and export editable electrical floor drawings** for an
-AutoCAD Electrical workflow: lighting, switching, sockets, data, AC, distribution boards,
-emergency provisions, routes and labels, on a clean layer vocabulary, with DWG/DXF/PNG/PDF output.
+**An MCP server that lets Claude (or ChatGPT) draw and edit electrical floor plans, live, in AutoCAD Electrical.**
 
-> Everything it produces is a **DRAFT drawing aid**. It does not perform lighting, load, cable or
-> protection calculations and implies no engineering approval.
+Ask in plain language: *"add a socket on the north wall of the Classroom, put it on circuit 4F-P02, redraw the route, and undo that"*. With AutoCAD open the change appears on screen as you chat. Without it, the same assistant builds the drawings offline as editable DXF files with PNG/PDF previews.
 
-## How it works
+[![CI](https://github.com/Dulaj-04/Claude_repo/actions/workflows/ci.yml/badge.svg)](https://github.com/Dulaj-04/Claude_repo/actions/workflows/ci.yml)
 
-One JSON **floor model** (rooms, devices, circuits, routes) is the single source of truth.
-The four drawings per floor are generated from it, so they always agree:
+> Everything produced is a **DRAFT drawing aid**. The server does not perform lighting, load, cable or protection calculations and implies no engineering approval.
 
-| View | File |
+---
+
+## What it does
+
+| | |
 | --- | --- |
-| architectural | `<floor>_Architectural_Base.dxf` |
-| lighting | `<floor>_Lighting_Design.dxf` |
-| power / socket / AC | `<floor>_Power_Socket_AC_Design.dxf` |
-| combined | `<floor>_Electrical_Complete.dxf` |
+| **Live editing** | Edits the drawing **open in AutoCAD / AutoCAD Electrical** through COM: place, move, delete and re-route devices, add text, zoom to show you, undo one chat instruction at a time. Works on your existing drawings: `live_adopt` gives their symbols stable ids without changing the geometry. |
+| **Offline drawing generation** | No AutoCAD needed. Builds four views per floor (architectural, lighting, power/socket/AC, combined) from one floor model, with safe preview → apply → undo, and exports DXF, PNG, A3 PDF and a `manifest.json` (DWG with live AutoCAD or the ODA File Converter). |
+| **Schematic mode** | Optional, off by default. Reads AutoCAD Electrical schematics (components, tags, wire numbers) and probes your install's AutoLISP commands. Writing schematic content is the next step. |
+| **Validation** | Unique ids, circuits of the right kind on an existing DB, routes tied to circuits in the model, devices inside their rooms, layers present, architecture unchanged vs the reference, files reopen, hand edits detected. |
 
-`export_package` additionally writes DWG (when available), PNG previews, A3 PDF sheets and a
-`manifest.json` (file hashes, revision, validation result).
+It uses your drawing conventions (layers `WALL DOORS LIFT STAIRS FURNITURE TEXT LIGHTING SWITCHES LIGHT_WIRING SOCKETS POWER_WIRING DATA AC AC_WIRING DB EMERGENCY NOTES`, labels such as `4F-L01`, `4F-P01`, `4F-AC01`, `DB-4F`) and never modifies your reference drawings.
 
-Edits are **changesets**: plan → `preview_changes` → `apply_changes`. Applying is guarded by the
-model revision, the reference-file hash and manual-edit detection; it snapshots the previous
-revision (`undo_last`), regenerates the views and reads them back for validation. Re-planning
-the same devices creates no duplicates (deterministic IDs such as `4F-L01`, `4F-P01`,
-`4F-AC01`, `DB-4F`). Your reference drawings are never modified.
+## Three ways to work
 
-### Two backends
+| Mode | Use it when | Needs | Status |
+| --- | --- | --- | --- |
+| **Live (plan symbols)** — `live_*` tools | You want to see changes in AutoCAD while you chat | Windows, AutoCAD Electrical running with a drawing open | Built, tested against a simulated AutoCAD |
+| **Offline** — `plan_*`, `apply_changes`, `export_package` … | You want drawing files without AutoCAD, or repeatable batch output | Any OS, Python only | Built and tested |
+| **Schematic** — `sch_*` tools (`live_set_mode('schematic')`) | You are working with AutoCAD Electrical schematics | Same as Live | Read and probe only |
 
-| Backend | Needs | Does |
-| --- | --- | --- |
-| `dxf` (default) | Python only, any OS | Reads/writes DXF with [ezdxf](https://ezdxf.mozman.at); PNG/PDF rendering. DWG in/out only if the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) is installed. |
-| `autocad` | Windows, licensed AutoCAD / AutoCAD Electrical running, `pywin32` | Draws through the AutoCAD COM API and saves native DWG/DXF. |
+Switching is explicit: say *"switch to schematic mode"* and the plan-symbol tools are blocked until you say *"back to plan mode"*, so the two are never mixed by accident.
 
-## Install
+---
 
+## Quick start
+
+### Windows (recommended, includes live AutoCAD)
+1. Download this repo (*Code → Download ZIP*), extract to a permanent folder such as `C:\Tools\Claude_repo`.
+2. In PowerShell, inside that folder:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1
+   ```
+   It creates the venv, installs, runs the self-test and adds the server to Claude Desktop's config.
+3. Quit Claude Desktop from the tray, reopen, start a **new** chat.
+
+Step-by-step with troubleshooting: [docs/windows-setup.md](docs/windows-setup.md).
+
+### Any OS (offline mode)
 ```bash
-git clone https://github.com/dulaj-04/claude_repo.git
-cd claude_repo
+git clone https://github.com/Dulaj-04/Claude_repo.git && cd Claude_repo
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
-pip install -e .                                      # add ".[autocad]" for the live backend
-acad-electrical-mcp --make-sample sample_floor.dxf    # optional demo architectural drawing
+pip install -e .
+acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 42 tools"
+acad-electrical-mcp --make-sample sample_floor.dxf     # optional demo drawing
 ```
+Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKSPACE` or `--workspace`).
 
-Python 3.10+. Output goes to `./acad_mcp_workspace` (override with `ACAD_MCP_WORKSPACE` or
-`--workspace`).
+## Connect to an AI client
 
-## Use with Claude
-
-**Claude Code**
-
-```bash
-claude mcp add acad-electrical -- acad-electrical-mcp
-```
-
-**Claude Desktop** — add to `claude_desktop_config.json` (use the full path to the venv's
-`acad-electrical-mcp` if it is not on PATH):
-
+**Claude Desktop** — add to `claude_desktop_config.json` (full path to the venv's executable, doubled backslashes on Windows; the Windows installer does this for you):
 ```json
 {
   "mcpServers": {
     "acad-electrical": {
-      "command": "acad-electrical-mcp",
-      "env": { "ACAD_MCP_WORKSPACE": "/path/to/my/drawings" }
+      "command": "C:\\Tools\\Claude_repo\\.venv\\Scripts\\acad-electrical-mcp.exe",
+      "env": { "ACAD_MCP_WORKSPACE": "C:\\Users\\YOU\\Documents\\acad_drawings" }
     }
   }
 }
 ```
 
-## Use with ChatGPT (or any remote MCP client)
-
-ChatGPT connects to MCP servers over HTTPS, so run the HTTP transport and expose it:
-
+**Claude Code**
 ```bash
-acad-electrical-mcp --transport http --port 8000
-ngrok http 8000                                   # or any tunnel / your own server
-# restart with the public host allowed:
+claude mcp add acad-electrical -- /full/path/to/.venv/bin/acad-electrical-mcp
+```
+
+**ChatGPT / any remote MCP client** — needs HTTPS, so run the HTTP transport behind a tunnel:
+```bash
 acad-electrical-mcp --transport http --port 8000 --allowed-host abc123.ngrok-free.app
 ```
+Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings → Connectors*, developer mode; availability depends on your plan). The HTTP endpoint has **no authentication**, so keep the tunnel short-lived. Live AutoCAD tools only work when the server runs on the same Windows PC as AutoCAD.
 
-Then in ChatGPT: *Settings → Connectors → (enable Developer mode) → Create*, and use
-`https://abc123.ngrok-free.app/mcp` as the MCP server URL. Connector availability depends on your
-ChatGPT plan. The HTTP endpoint has **no authentication**; do not expose it publicly beyond a
-short-lived tunnel, and keep `ACAD_MCP_ALLOW_COMMANDS` unset.
+---
 
-## Live mode: edit the drawing open in AutoCAD while you chat
+## Example prompts
 
-Windows + AutoCAD / AutoCAD Electrical running with a drawing open. The `live_*` tools edit
-that **open drawing directly** (no export step), so every instruction in the chat appears on
-screen, and you can keep adjusting: *"move the DB to the corridor", "add a socket on the north
-wall of the Classroom", "re-route L03", "undo that"*. Full guide: [docs/live.md](docs/live.md).
+**Live, on the open drawing**
+> `live_connect`, then `live_adopt` for floor 4F ignoring pieces under 100 mm.
+> Where is the Classroom? Put a socket on its north wall 1 m in from the left corner on circuit 4F-P02 / DB-4F, redraw route 4F-P02, and zoom there.
+> Undo that. Move DB-4F 2 m left.
 
-## Troubleshooting
+**Offline, from a reference DXF**
+> Register `sample_floor.dxf` as floor 4F of project `demo` with rooms 4-A OFFICE (0,0,6000,5000), 4-B MEETING ROOM (6000,0,10000,5000), 4-C CORRIDOR (0,5000,10000,7000). Put a DB at (5000,6000), create lighting circuit L1 on it, propose a lighting grid in 4-A at 3000×2500 spacing on L1, route L1, apply, validate and export the package.
 
-First prove the server itself works, independent of any client:
+**Schematic**
+> Switch to schematic mode, run `sch_detect`, then `sch_read`.
 
-```bash
-acad-electrical-mcp --selftest      # prints "SELFTEST OK ... 20 tools" and exits 0
+---
+
+## Commands
+
+### MCP tools (42) — what the assistant can call
+Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated from the running server).
+
+| Group | Tool | What it does |
+| --- | --- | --- |
+| **Live editing** (Windows + AutoCAD) | `live_connect` | Attach to the open drawing; report name, layers, entity counts, unit scale. Start here. |
+| | `live_selftest` | Create, move, route and delete test objects to prove the connection works. |
+| | `live_scan` | Find symbols (touching LINEs clustered per layer) in the open drawing. |
+| | `live_adopt` | Give existing symbols stable ids (`4F-LUM-01`, `DB-4F`) without changing geometry. |
+| | `live_list_devices` | Tracked devices/routes with live positions; flags hand-moved or deleted ones. |
+| | `live_texts` | Read TEXT (room names, labels) with positions. |
+| | `live_place` | Draw a luminaire / switch / socket / data / ac / emergency / db symbol at x,y. Idempotent. |
+| | `live_move` | Move a device to x,y or by dx,dy; marks its routes stale. |
+| | `live_delete` | Delete a tracked device. |
+| | `live_assign` | Record a device's circuit and DB. |
+| | `live_route` | Draw or redraw an orthogonal DB → devices route, labelled with the circuit id. |
+| | `live_add_text` / `live_add_polyline` | Add a note or a polyline on a layer. |
+| | `live_zoom` | Pan/zoom AutoCAD to a spot so you can see the change. |
+| | `live_undo` | Undo the last instruction (one undo step per call). |
+| | `live_save` | Save, or Save As. |
+| **Mode** | `live_set_mode` | `plan` (default) or `schematic`. |
+| **Schematic** (AutoCAD Electrical) | `sch_detect` | Product/version, Electrical loaded?, AutoLISP bridge OK?, counts of components/wire numbers/wires. |
+| | `sch_read` | Components (tag, description, location, manufacturer, catalog, terminals), wire numbers, wire layers. |
+| | `sch_probe` | List the AutoLISP commands/functions your install exposes (`c:ae`, `c:wd`, …). |
+| | `sch_run_lisp` | Run AutoLISP (**off** unless `ACAD_MCP_ALLOW_COMMANDS=1`). |
+| **Inspect** (offline) | `register_reference` | Hash and inventory a DXF: layers, entities, blocks, units, extents, text. |
+| | `inspect_drawing` | Inventory a generated view. |
+| | `list_devices` / `list_floors` | Show the floor model / the project's floors. |
+| | `get_preview_image` | Render a PNG of a view. |
+| **Prepare** | `prepare_floor_model` | Register the architectural reference and rooms; reports name differences instead of overwriting. |
+| | `prepare_template` | Layer colours/lineweights, symbol and text size, status note, title block. |
+| **Plan** | `plan_devices` | Propose devices; repeats create no duplicates. |
+| | `propose_lighting_grid` | Draft luminaire grid in a room (placement only, no lux calculation). |
+| | `set_circuit_assignment` | Create/update a circuit, bind to a DB, assign devices. |
+| | `plan_routes` | Propose an orthogonal route tied to its circuit and DB. |
+| **Apply** | `preview_changes` | Show a changeset: operations, assumptions, conflicts. |
+| | `apply_changes` | Guarded apply (revision, reference hash, hand-edit detection), regenerate, read back. |
+| | `undo_last` | Restore the previous revision. |
+| | `sync_from_drawing` | Adopt device moves made by hand in the CAD file. |
+| **Output** | `generate_views` | Regenerate the four DXF views from the model. |
+| | `export_package` | DXF, DWG (if possible), PNG, A3 PDF and `manifest.json` with hashes and validation. |
+| | `validate_drawing` | Issues with severity, code and message. |
+| **AutoCAD utilities** (Windows) | `acad_status` / `acad_open` | Report the running AutoCAD / open a drawing read-only. |
+| | `acad_run_command` | Send a command line (**off** unless `ACAD_MCP_ALLOW_COMMANDS=1`). |
+
+### Command line
+| Command | Purpose |
+| --- | --- |
+| `acad-electrical-mcp` | Start the MCP server on stdio (what Claude Desktop/Code launches). |
+| `acad-electrical-mcp --transport http --port 8000 [--host H] [--allowed-host NAME]` | Streamable HTTP for remote clients such as ChatGPT. |
+| `acad-electrical-mcp --selftest` | Start the server, list its tools, exit 0 if healthy. Run this first when anything is wrong. |
+| `acad-electrical-mcp --make-sample FILE.dxf` | Write a small demo architectural floor. |
+| `acad-electrical-mcp --workspace DIR` / `--backend dxf\|autocad` | Choose the project/output folder / drawing backend. |
+| `acad-electrical-mcp --version` | Print the version. |
+| `python scripts/gen_tool_docs.py [--check]` | Regenerate (or verify) `docs/tools.md`. |
+| `scripts\install-windows.ps1 [-Workspace DIR] [-NoConfig]` | One-shot Windows setup. |
+
+### Environment variables
+| Variable | Meaning |
+| --- | --- |
+| `ACAD_MCP_WORKSPACE` | Folder for models and outputs (default `./acad_mcp_workspace`). |
+| `ACAD_MCP_BACKEND` | `dxf` (default, offline) or `autocad` (COM) for the offline generator. |
+| `ACAD_MCP_ALLOW_COMMANDS` | `1` enables `acad_run_command` and `sch_run_lisp`. Off by default because they can change any open drawing. |
+
+---
+
+## How it works
+- **Offline:** one JSON *floor model* per floor (rooms, devices, circuits, routes) is the source of truth; all four views are generated from it so they always agree. Edits are *changesets*: plan → `preview_changes` → `apply_changes`, guarded by model revision, the reference file hash and hand-edit detection, with a snapshot for `undo_last`. Deterministic ids make repeated plans idempotent.
+- **Live:** each device or route is drawn as plain LINE/polyline/TEXT in your reference style on your layers and wrapped in a named AutoCAD **group** `ACADE_<id>`, a stable id that survives saves and hand edits. Every call is wrapped in an undo mark. Symbol size is taken from the geometry (your reference drawings are millimetres although their header says metres).
+- **Schematic:** reads AutoCAD Electrical blocks and attributes, and talks to AutoLISP by sending an expression and reading the answer back through a system variable.
+
+## Repository layout
+```
+.
+├── README.md
+├── pyproject.toml                 package metadata, dependencies, lint config
+├── LICENSE
+├── .github/workflows/ci.yml       lint + tests on Python 3.10 and 3.12
+├── src/acad_electrical_mcp/
+│   ├── server.py                  MCP tools, CLI, transports (stdio / HTTP)
+│   ├── live.py                    LIVE editing of the open AutoCAD drawing (COM)
+│   ├── schematic.py               AutoCAD Electrical schematic read + AutoLISP probe
+│   ├── symbols.py                 plan-symbol geometry in your reference style
+│   ├── planner.py  model.py       changesets and the floor model store (offline)
+│   ├── views.py  export.py        generate the four views; DXF/PNG/PDF/manifest
+│   ├── validate.py  inspection.py checks and drawing inventory
+│   ├── template.py  ids.py        layers/colours and id rules
+│   ├── config.py  sample.py       settings, demo drawing
+│   └── backends/                  dxf_backend.py (ezdxf) · autocad_backend.py (COM)
+├── scripts/
+│   ├── install-windows.ps1        one-shot Windows setup
+│   └── gen_tool_docs.py           builds docs/tools.md from the server
+├── docs/
+│   ├── windows-setup.md           install + troubleshooting
+│   ├── live.md                    live mode and schematic mode guide
+│   └── tools.md                   every tool and parameter (generated)
+├── examples/claude_desktop_config.json
+└── tests/                         offline workflow, live (fake AutoCAD), schematic, stdio smoke
 ```
 
-- `SELFTEST FAILED`: the install is broken (wrong Python, or `pip install -e .` not run in the
-  active venv). Re-run the install steps.
-- Selftest OK but no tools in Claude Desktop: fully quit it (tray icon → Quit), reopen, start a
-  **new** chat, make sure the connector toggle is on, and ask "list the tools from
-  acad-electrical" (tools may load on demand).
-- In `claude_desktop_config.json` use the full path to `acad-electrical-mcp(.exe)` inside your venv.
+## Status: what is verified
+- **Verified by automated tests (CI on Python 3.10 and 3.12):** the offline workflow (planning, guarded apply, idempotence, stale/hand-edit conflicts, undo, sync, DXF/PNG/PDF/manifest export, reopen validation); the MCP protocol over stdio; the live and schematic logic against an in-memory simulation of AutoCAD's object model, including your real 4F drawing loaded into it (68 luminaires, 33 sockets, 11 emergency symbols, 9 AC units and 4 switches recognised).
+- **Confirmed on a real PC:** the server installs on Windows and Claude Desktop lists and runs its tools.
+- **Not yet verified against a real AutoCAD:** the COM calls behind the `live_*` tools and the AutoLISP return channel behind `sch_*`. Run `live_selftest` on a scratch drawing first and report any error text.
+- **Not built yet:** inserting AutoCAD Electrical schematic components, drawing connected wires, wire numbering, reports. These must call Electrical's own commands, so they will be built from `sch_probe` output for your version. Model space only (no layouts yet).
+- **Out of scope:** DIALux, load/cable/protection schedules, SLD and BOQ. Floor-plan routes are drawing geometry, not an Electrical wire network.
+- DWG output offline needs the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter); otherwise `export_package` lists DWG as skipped with the reason.
 
-## Quick walk-through (say this to your assistant)
-
-> Register `sample_floor.dxf` as floor 4F of project `demo` with rooms 4-A OFFICE
-> (0,0,6000,5000), 4-B MEETING ROOM (6000,0,10000,5000), 4-C CORRIDOR (0,5000,10000,7000).
-> Put a DB at (5000,6000), create lighting circuit L1 on it, propose a lighting grid in 4-A at
-> 3000×2500 spacing on L1, route L1, apply, validate and export the package.
-
-## Tools
-
-| Group | Tools |
-| --- | --- |
-| Inspect | `register_reference`, `inspect_drawing`, `list_devices`, `list_floors`, `get_preview_image` |
-| Prepare | `prepare_floor_model`, `prepare_template` |
-| Plan | `plan_devices`, `propose_lighting_grid`, `set_circuit_assignment`, `plan_routes` |
-| Safe write | `preview_changes`, `apply_changes`, `undo_last`, `sync_from_drawing` |
-| Output | `generate_views`, `export_package`, `validate_drawing` |
-| **Live editing (Windows)** | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save` |
-| **Schematic mode (Windows, AutoCAD Electrical)** | `live_set_mode`, `sch_detect`, `sch_read`, `sch_probe`, `sch_run_lisp` (read/probe only for now) |
-| Live AutoCAD (Windows) | `acad_status`, `acad_open`, `acad_run_command` (disabled unless `ACAD_MCP_ALLOW_COMMANDS=1`) |
-
-Device types: `luminaire`, `switch`, `socket`, `data`, `ac`, `emergency`, `db`. Layers (all
-configurable via `prepare_template`): `Wall Doors Lift Stairs FURNITURE TEXT LIGHTING SWITCHES
-LIGHT_WIRING SOCKETS POWER_WIRING DATA AC AC_WIRING DB EMERGENCY NOTES`. Layers that already exist
-in your reference drawing keep their own colours.
-
-Details: [docs/tools.md](docs/tools.md).
-
-## What validation checks
-
-Unique floor-prefixed IDs; every device on a circuit of the right kind bound to an existing DB;
-routes tied to their circuit and devices in the model (crossing lines imply no connectivity);
-devices inside their rooms; all layers present; every device drawn exactly once per view and
-views reconciling with the model; architectural layer entity counts equal to the reference;
-reference hash unchanged; label overlaps; status note; files reopen; manual edits detected.
-
-## Verified vs not verified
-
-- **Verified** (automated tests, CI): the `dxf` backend end to end — planning, guarded apply,
-  repeat-run idempotence, stale/manual-edit conflicts, undo, sync, export of DXF/PNG/PDF/manifest,
-  reopen validation, and the stdio MCP protocol; HTTP transport starts and answers `initialize`.
-- **Not verified**: the live COM tools (`live_*`) and the `autocad` backend are tested only against an in-memory fake of the AutoCAD object model and against your reference drawings loaded into it; run `live_selftest` on a scratch drawing first. The `autocad` COM backend has not been run against a licensed AutoCAD
-  Electrical host (it cannot run in CI). Treat it as experimental and test on a disposable copy.
-  Native DWG output without it needs the ODA File Converter; otherwise `export_package` reports
-  DWG as skipped with the reason.
-- **Out of scope**: AutoCAD Electrical *project* semantics (intelligent wires/components,
-  WDBLOCK/project reports), DIALux, load/cable/protection schedules, SLD and BOQ. Floor-plan
-  routes here are drawing geometry, not an AutoCAD Electrical wire network.
-- Units: if a reference declares no `$INSUNITS`, you are warned; confirm units before trusting
-  any dimension or area.
+## Troubleshooting
+Run `acad-electrical-mcp --selftest` first: `SELFTEST OK` means the server is fine and the problem is in the client or AutoCAD. See [docs/windows-setup.md](docs/windows-setup.md#common-problems) for the common errors (folder moved, mcp 2.x, no tools in chat) and [docs/live.md](docs/live.md) for live-mode requirements (AutoCAD idle, same Windows user).
 
 ## Development
-
 ```bash
 pip install -e ".[dev]"
 ruff check . && pytest -q
+python scripts/gen_tool_docs.py --check     # docs/tools.md must match the server
 ```
+When you add or change a tool, run `python scripts/gen_tool_docs.py` and add it to the README table (a test fails if the README misses a tool).
 
-MIT licensed.
+## License
+MIT
