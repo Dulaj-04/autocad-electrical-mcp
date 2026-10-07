@@ -4,7 +4,7 @@ Tested path: Windows 10/11, Python 3.10+, Claude Desktop, AutoCAD Electrical 202
 
 ## 1. Get the code
 Download the repo as a zip from GitHub (*Code → Download ZIP*) and extract it somewhere that will not
-be cleaned up, for example `C:\Tools\Claude_repo`. Do **not** leave it in `Downloads`: Claude Desktop
+be cleaned up, for example `C:\Tools\autocad-electrical-mcp`. Do **not** leave it in `Downloads`: Claude Desktop
 starts the program from inside this folder, so moving or deleting the folder breaks the connection.
 (If you used `git clone`, the same applies.)
 
@@ -30,7 +30,7 @@ the `acad-electrical` server should show *running*.
 
 ## Manual install (instead of the script)
 ```powershell
-cd C:\Tools\Claude_repo
+cd C:\Tools\autocad-electrical-mcp
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\acad-electrical-mcp.exe --selftest
@@ -38,7 +38,7 @@ python -m venv .venv
 Then put this in `claude_desktop_config.json` (double backslashes):
 ```json
 { "mcpServers": { "acad-electrical": {
-  "command": "C:\\Tools\\Claude_repo\\.venv\\Scripts\\acad-electrical-mcp.exe",
+  "command": "C:\\Tools\\autocad-electrical-mcp\\.venv\\Scripts\\acad-electrical-mcp.exe",
   "env": { "ACAD_MCP_WORKSPACE": "C:\\Users\\YOU\\Documents\\acad_drawings" } } } }
 ```
 

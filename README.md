@@ -1,10 +1,10 @@
-# acad-electrical-mcp
+# autocad-electrical-mcp
 
 **An MCP server that lets Claude (or ChatGPT) draw and edit electrical floor plans, live, in AutoCAD Electrical.**
 
 Ask in plain language: *"add a socket on the north wall of the Classroom, put it on circuit 4F-P02, redraw the route, and undo that"*. With AutoCAD open the change appears on screen as you chat. Without it, the same assistant builds the drawings offline as editable DXF files with PNG/PDF previews.
 
-[![CI](https://github.com/Dulaj-04/Claude_repo/actions/workflows/ci.yml/badge.svg)](https://github.com/Dulaj-04/Claude_repo/actions/workflows/ci.yml)
+[![CI](https://github.com/Dulaj-04/autocad-electrical-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Dulaj-04/autocad-electrical-mcp/actions/workflows/ci.yml)
 
 > Everything produced is a **DRAFT drawing aid**. The server does not perform lighting, load, cable or protection calculations and implies no engineering approval.
 
@@ -35,8 +35,10 @@ Switching is explicit: say *"switch to schematic mode"* and the plan-symbol tool
 
 ## Quick start
 
+> Naming: the repository is `autocad-electrical-mcp`; the Python package and the command it installs are `acad-electrical-mcp`.
+
 ### Windows (recommended, includes live AutoCAD)
-1. Download this repo (*Code → Download ZIP*), extract to a permanent folder such as `C:\Tools\Claude_repo`.
+1. Download this repo (*Code → Download ZIP*), extract to a permanent folder such as `C:\Tools\autocad-electrical-mcp`.
 2. In PowerShell, inside that folder:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1
@@ -48,7 +50,7 @@ Step-by-step with troubleshooting: [docs/windows-setup.md](docs/windows-setup.md
 
 ### Any OS (offline mode)
 ```bash
-git clone https://github.com/Dulaj-04/Claude_repo.git && cd Claude_repo
+git clone https://github.com/Dulaj-04/autocad-electrical-mcp.git && cd autocad-electrical-mcp
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e .
 acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 42 tools"
@@ -63,7 +65,7 @@ Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKS
 {
   "mcpServers": {
     "acad-electrical": {
-      "command": "C:\\Tools\\Claude_repo\\.venv\\Scripts\\acad-electrical-mcp.exe",
+      "command": "C:\\Tools\\autocad-electrical-mcp\\.venv\\Scripts\\acad-electrical-mcp.exe",
       "env": { "ACAD_MCP_WORKSPACE": "C:\\Users\\YOU\\Documents\\acad_drawings" }
     }
   }

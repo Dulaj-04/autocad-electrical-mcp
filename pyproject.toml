@@ -19,6 +19,11 @@ dependencies = [
 autocad = ["pywin32>=306; sys_platform == 'win32'"]
 dev = ["pytest>=8", "ruff>=0.5"]
 
+[project.urls]
+Homepage = "https://github.com/Dulaj-04/autocad-electrical-mcp"
+Repository = "https://github.com/Dulaj-04/autocad-electrical-mcp"
+Issues = "https://github.com/Dulaj-04/autocad-electrical-mcp/issues"
+
 [project.scripts]
 acad-electrical-mcp = "acad_electrical_mcp.server:main"
 
