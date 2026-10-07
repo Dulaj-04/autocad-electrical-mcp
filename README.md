@@ -25,7 +25,7 @@ It uses your drawing conventions (layers `WALL DOORS LIFT STAIRS FURNITURE TEXT 
 
 | Mode | Use it when | Needs | Status |
 | --- | --- | --- | --- |
-| **Live (plan symbols)** — `live_*` tools | You want to see changes in AutoCAD while you chat | Windows, AutoCAD Electrical running with a drawing open | Built, tested against a simulated AutoCAD |
+| **Live (plan symbols)** — `live_*` tools | You want to see changes in AutoCAD while you chat | Windows, AutoCAD Electrical running with a drawing open | Self-test passed on AutoCAD Electrical 2026 |
 | **Offline** — `plan_*`, `apply_changes`, `export_package` … | You want drawing files without AutoCAD, or repeatable batch output | Any OS, Python only | Built and tested |
 | **Schematic** — `sch_*` tools (`live_set_mode('schematic')`) | You are working with AutoCAD Electrical schematics | Same as Live | Read and probe only |
 
@@ -204,8 +204,8 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 
 ## Status: what is verified
 - **Verified by automated tests (CI on Python 3.10 and 3.12):** the offline workflow (planning, guarded apply, idempotence, stale/hand-edit conflicts, undo, sync, DXF/PNG/PDF/manifest export, reopen validation); the MCP protocol over stdio; the live and schematic logic against an in-memory simulation of AutoCAD's object model, including your real 4F drawing loaded into it (68 luminaires, 33 sockets, 11 emergency symbols, 9 AC units and 4 switches recognised).
-- **Confirmed on a real PC:** the server installs on Windows and Claude Desktop lists and runs its tools.
-- **Not yet verified against a real AutoCAD:** the COM calls behind the `live_*` tools and the AutoLISP return channel behind `sch_*`. Run `live_selftest` on a scratch drawing first and report any error text.
+- **Confirmed on a real PC:** the server installs on Windows and Claude Desktop lists and runs its tools. `live_selftest` passed on **AutoCAD Electrical 2026**: it placed a board and a luminaire, moved one, drew a route, read everything back and cleaned up, leaving the existing drawing contents (devices and routes) untouched.
+- **Not yet individually confirmed on real AutoCAD:** `live_adopt`, `live_delete`, `live_undo`, `live_zoom`, `live_texts`, `live_add_text`, `live_add_polyline`, `live_save`, and the AutoLISP return channel behind `sch_*`. Try them on a scratch copy first and report any error text.
 - **Not built yet:** inserting AutoCAD Electrical schematic components, drawing connected wires, wire numbering, reports. These must call Electrical's own commands, so they will be built from `sch_probe` output for your version. Model space only (no layouts yet).
 - **Out of scope:** DIALux, load/cable/protection schedules, SLD and BOQ. Floor-plan routes are drawing geometry, not an Electrical wire network.
 - DWG output offline needs the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter); otherwise `export_package` lists DWG as skipped with the reason.
