@@ -34,3 +34,14 @@ def test_stdio_roundtrip(tmp_path):
             assert bad.isError
 
     asyncio.run(run())
+
+
+def test_selftest_flag(capsys):
+    import pytest
+
+    from acad_electrical_mcp.server import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--selftest"])
+    assert exc.value.code == 0
+    assert "plan_devices" in capsys.readouterr().out

@@ -87,6 +87,21 @@ Then in ChatGPT: *Settings → Connectors → (enable Developer mode) → Create
 ChatGPT plan. The HTTP endpoint has **no authentication**; do not expose it publicly beyond a
 short-lived tunnel, and keep `ACAD_MCP_ALLOW_COMMANDS` unset.
 
+## Troubleshooting
+
+First prove the server itself works, independent of any client:
+
+```bash
+acad-electrical-mcp --selftest      # prints "SELFTEST OK ... 20 tools" and exits 0
+```
+
+- `SELFTEST FAILED`: the install is broken (wrong Python, or `pip install -e .` not run in the
+  active venv). Re-run the install steps.
+- Selftest OK but no tools in Claude Desktop: fully quit it (tray icon → Quit), reopen, start a
+  **new** chat, make sure the connector toggle is on, and ask "list the tools from
+  acad-electrical" (tools may load on demand).
+- In `claude_desktop_config.json` use the full path to `acad-electrical-mcp(.exe)` inside your venv.
+
 ## Quick walk-through (say this to your assistant)
 
 > Register `sample_floor.dxf` as floor 4F of project `demo` with rooms 4-A OFFICE

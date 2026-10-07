@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Add --selftest flag and troubleshooting docs *)",
+      "Bash(git push *)"
+    ]
+  }
+}

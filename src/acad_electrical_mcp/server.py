@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import logging
 from pathlib import Path
 from typing import Any, Literal
@@ -388,6 +389,34 @@ def acad_run_command(command: str) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- CLI
+def _selftest() -> int:
+    import asyncio
+    import sys
+    import tempfile
+
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    async def run() -> list[str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            params = StdioServerParameters(
+                command=sys.executable, args=["-m", "acad_electrical_mcp.server"],
+                env={**os.environ, "ACAD_MCP_WORKSPACE": tmp},
+            )
+            async with stdio_client(params) as (r, w), ClientSession(r, w) as sess:
+                await sess.initialize()
+                return sorted(t.name for t in (await sess.list_tools()).tools)
+
+    try:
+        names = asyncio.run(run())
+    except Exception as exc:  # noqa: BLE001 - report any startup failure
+        print(f"SELFTEST FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    print(f"SELFTEST OK: server started and exposes {len(names)} tools:")
+    print("  " + ", ".join(names))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="acad-electrical-mcp", description=__doc__)
     ap.add_argument("--transport", choices=["stdio", "http"], default="stdio")
@@ -400,7 +429,11 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--version", action="version", version=__version__)
     ap.add_argument("--make-sample", metavar="FILE.dxf",
                     help="write a small sample architectural floor DXF and exit")
+    ap.add_argument("--selftest", action="store_true",
+                    help="start the server over stdio, list its tools and exit (0 = OK)")
     args = ap.parse_args(argv)
+    if args.selftest:
+        raise SystemExit(_selftest())
     if args.make_sample:
         from .sample import make_sample_floor
         print(make_sample_floor(args.make_sample))
