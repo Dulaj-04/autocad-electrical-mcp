@@ -17,6 +17,14 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "tools.md"
 
 GROUPS: list[tuple[str, str, list[str]]] = [
+    ("Plan-first workflow",
+     "Define a goal for large requests, track steps and the inputs needed from you. Guide: "
+     "docs/planning.md.",
+     ["plan_templates", "plan_define", "plan_show", "plan_next", "plan_approve", "plan_update_step",
+      "plan_provide_input", "plan_add_step", "plan_add_input", "plan_note"]),
+    ("Excel inputs and calculations",
+     "Excel sheets for you to fill in, a validating reader, and the load summary.",
+     ["workbook_create", "workbook_read", "load_summary"]),
     ("Inspect", "Read drawings and models. Nothing is changed.",
      ["register_reference", "inspect_drawing", "list_devices", "list_floors", "get_preview_image"]),
     ("Prepare", "Create the floor model and set the drawing template.",

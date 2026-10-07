@@ -1,11 +1,13 @@
 # Tool reference
 
-All 50 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
+All 63 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
 
 Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates are in the drawing's units.
 
 | Group | Tools |
 | --- | --- |
+| Plan-first workflow | `plan_templates`, `plan_define`, `plan_show`, `plan_next`, `plan_approve`, `plan_update_step`, `plan_provide_input`, `plan_add_step`, `plan_add_input`, `plan_note` |
+| Excel inputs and calculations | `workbook_create`, `workbook_read`, `load_summary` |
 | Inspect | `register_reference`, `inspect_drawing`, `list_devices`, `list_floors`, `get_preview_image` |
 | Prepare | `prepare_floor_model`, `prepare_template` |
 | Plan | `plan_devices`, `propose_lighting_grid`, `set_circuit_assignment`, `plan_routes` |
@@ -16,6 +18,156 @@ Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates 
 | Mode switch | `live_set_mode` |
 | Schematic mode (AutoCAD Electrical) | `sch_detect`, `sch_check_commands`, `sch_modules`, `sch_read`, `sch_probe`, `sch_run_lisp` |
 | AutoCAD utilities (Windows) | `acad_status`, `acad_open`, `acad_run_command` |
+
+## Plan-first workflow
+
+Define a goal for large requests, track steps and the inputs needed from you. Guide: docs/planning.md.
+
+### `plan_templates`
+
+List the plan templates (lighting_from_dialux, load_and_max_demand, cable_and_protection, drawing_from_reference, sld_and_boq, full_project) with their steps, the inputs they need and which steps are not automated yet, and the Excel input workbooks available.
+
+_No parameters._
+
+### `plan_define`
+
+Start a plan for a large request BEFORE doing any work: a title, a one-paragraph goal, the success criteria ('done when...'), what is in and out of scope, and optionally a template that pre-fills the steps and the inputs needed from the user. The plan starts as a draft: show it to the user and call plan_approve once they agree. Use replace=true to overwrite an existing plan.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `title` | string | yes |  |
+| `goal` | string | yes |  |
+| `success_criteria` | list of string | yes |  |
+| `scope_in` | list of string | no | `None` |
+| `scope_out` | list of string | no | `None` |
+| `template` | string | no | `None` |
+| `replace` | boolean | no | `False` |
+
+### `plan_show`
+
+Current plan for a project: goal, approval, step statuses, inputs received/missing, what is ready now and exactly what is needed from the user, plus a markdown checklist to show them. Call this at the start of a session and after every step.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+
+### `plan_next`
+
+What to do next: steps that are ready, steps that are blocked (and by what), and the list of inputs the user must supply with how to supply them (including the Excel template to use). Ask the user for these in plain words.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+
+### `plan_approve`
+
+Record that the USER agreed to the goal and scope. Pass user_confirmed=true only after the user has actually said yes in this conversation; never on your own initiative.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `user_confirmed` | boolean | yes |  |
+| `note` | string | no | `None` |
+
+### `plan_update_step`
+
+Update a step. Finishing a step ('done') needs a result (files written, counts, key numbers, decisions) and is refused while its inputs are missing or earlier steps are unfinished, unless force=true with a note saying why. Call this as each step starts and finishes.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `step_id` | string | yes |  |
+| `status` | `pending` \| `in_progress` \| `done` \| `blocked` \| `skipped` | yes |  |
+| `note` | string | no | `None` |
+| `result` | string | no | `None` |
+| `force` | boolean | no | `False` |
+
+### `plan_provide_input`
+
+Record that the user supplied an input: reference = file path, value, or a short description of the decision; or not_applicable=true if it does not apply. Unblocks the steps that need it.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `input_id` | string | yes |  |
+| `reference` | string | no | `None` |
+| `note` | string | no | `None` |
+| `not_applicable` | boolean | no | `False` |
+
+### `plan_add_step`
+
+Add a step to the plan (e.g. when the scope grows). Say which inputs it needs and which steps must finish first.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `title` | string | yes |  |
+| `kind` | `input` \| `calc` \| `drawing` \| `review` \| `output` | yes |  |
+| `tools` | list of string | no | `None` |
+| `needs_inputs` | list of string | no | `None` |
+| `depends_on` | list of string | no | `None` |
+| `guidance` | string | no | `None` |
+
+### `plan_add_input`
+
+Add something the plan needs from the user: why it is needed and exactly how to provide it. workbook = name of an Excel template (see plan_templates) if it should be supplied that way.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `input_id` | string | yes |  |
+| `title` | string | yes |  |
+| `why` | string | yes |  |
+| `how` | string | yes |  |
+| `kind` | `file` \| `value` \| `table` \| `decision` \| `workbook` | no | `value` |
+| `workbook` | string | no | `None` |
+
+### `plan_note`
+
+Record an assumption, a decision or a note with its source (who/what it came from), so it is visible in the plan and in the report. Use it for every number or choice the user gave you.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `text` | string | yes |  |
+| `kind` | `assumption` \| `decision` \| `note` | no | `assumption` |
+| `source` | string | no | `None` |
+
+## Excel inputs and calculations
+
+Excel sheets for you to fill in, a validating reader, and the load summary.
+
+### `workbook_create`
+
+Create an Excel input sheet for the user to fill in (instructions sheet, 'Data' sheet with required columns marked *, dropdowns and visible formulas). Saved under <workspace>/<project>/inputs/. Tell the user the path and what to fill in; then call workbook_read once they have saved it. An existing file is never overwritten unless asked.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `kind` | `load_schedule` \| `lighting_requirements` \| `luminaire_list` \| `cable_protection_inputs` | yes |  |
+| `overwrite` | boolean | no | `False` |
+
+### `workbook_read`
+
+Read and validate a filled-in sheet (default: the project's inputs/<kind>.xlsx): missing required fields, bad numbers, factors outside 0-1, unknown categories, duplicate ids. Returns the rows and a list of problems with row numbers to give the user. If plan_input_id is given and the sheet has no errors, that plan input is marked provided.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `kind` | `load_schedule` \| `lighting_requirements` \| `luminaire_list` \| `cable_protection_inputs` | yes |  |
+| `path` | string | no | `None` |
+| `plan_input_id` | string | no | `None` |
+
+### `load_summary`
+
+Connected load and maximum demand from the filled-in load schedule, by floor, board and category, plus the essential loads. Demand uses ONLY the demand factors the user entered: rows without one are listed and left out of the demand total (never assumed to be 1), and the result is marked incomplete. Refuses a sheet that has errors.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `project` | string | yes |  |
+| `path` | string | no | `None` |
+| `plan_input_id` | string | no | `None` |
 
 ## Inspect
 

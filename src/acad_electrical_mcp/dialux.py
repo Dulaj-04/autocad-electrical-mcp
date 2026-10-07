@@ -162,7 +162,7 @@ _SYN = {
 
 
 def _norm(h: str) -> str:
-    return re.sub(r"\s+", " ", str(h or "").strip().lower())
+    return re.sub(r"[\s*]+", " ", str(h or "").strip().lower()).strip()
 
 
 def _pick(headers: list[str], role: str, override: str | None) -> str | None:
@@ -195,8 +195,8 @@ def read_luminaire_list(path: str, sheet: str | None = None, columns: dict[str, 
         try:
             import openpyxl
         except ImportError as exc:
-            raise BackendError("Reading .xlsx needs openpyxl: pip install "
-                               "'acad-electrical-mcp[excel]'. Or save the sheet as CSV.") from exc
+            raise BackendError("Reading .xlsx needs openpyxl: pip install openpyxl "
+                               "(or reinstall the package). Or save the sheet as CSV.") from exc
         wb = openpyxl.load_workbook(str(p), read_only=True, data_only=True)
         ws = wb[sheet] if sheet else wb.active
         rows = [list(r) for r in ws.iter_rows(values_only=True)]

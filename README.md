@@ -18,6 +18,7 @@ Ask in plain language: *"add a socket on the north wall of the Classroom, put it
 | **Offline drawing generation** | No AutoCAD needed. Builds four views per floor (architectural, lighting, power/socket/AC, combined) from one floor model, with safe preview → apply → undo, and exports DXF, PNG, A3 PDF and a `manifest.json` (DWG with live AutoCAD or the ODA File Converter). |
 | **DIALux import** | Imports a DIALux DWG/DXF layout (luminaire blocks) into the model or straight into the open AutoCAD drawing, aligns it to your architecture, attaches wattage from a luminaire list, and produces a lighting schedule. See [docs/dialux.md](docs/dialux.md). |
 | **Schematic mode** | Optional, off by default. Reads AutoCAD Electrical schematics (components, tags, wire numbers) and probes your install's AutoLISP commands. Writing schematic content is the next step. |
+| **Plan-first workflow** | For large requests the assistant first writes a goal and plan, shows it to you, then works step by step. It tracks every step and tells you exactly what it needs from you: files, values, decisions, or Excel sheets it creates for you. See [docs/planning.md](docs/planning.md). |
 | **Validation** | Unique ids, circuits of the right kind on an existing DB, routes tied to circuits in the model, devices inside their rooms, layers present, architecture unchanged vs the reference, files reopen, hand edits detected. |
 
 It uses your drawing conventions (layers `WALL DOORS LIFT STAIRS FURNITURE TEXT LIGHTING SWITCHES LIGHT_WIRING SOCKETS POWER_WIRING DATA AC AC_WIRING DB EMERGENCY NOTES`, labels such as `4F-L01`, `4F-P01`, `4F-AC01`, `DB-4F`) and never modifies your reference drawings.
@@ -54,7 +55,7 @@ Step-by-step with troubleshooting: [docs/windows-setup.md](docs/windows-setup.md
 git clone https://github.com/Dulaj-04/autocad-electrical-mcp.git && cd autocad-electrical-mcp
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e .
-acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 50 tools"
+acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 63 tools"
 acad-electrical-mcp --make-sample sample_floor.dxf     # optional demo drawing
 ```
 Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKSPACE` or `--workspace`).
@@ -86,6 +87,9 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 
 ---
 
+## Plan-first, by default
+For anything bigger than a single action, the assistant is instructed (built into the server) to **define a goal first**, show you the plan, and only start after you approve it. It then keeps the plan updated and tells you what it needs from you at each step, including Excel sheets for loads and cable inputs. Four ready-made prompts appear in clients that support MCP prompts: `plan_a_request`, `lighting_from_dialux`, `load_schedule_and_demand`, `project_roadmap`. Set `ACAD_MCP_REQUIRE_PLAN=1` to make drawing changes refuse until a goal is approved. Details: [docs/planning.md](docs/planning.md).
+
 ## Example prompts
 
 **Live, on the open drawing**
@@ -103,11 +107,21 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 
 ## Commands
 
-### MCP tools (50) — what the assistant can call
+### MCP tools (63) — what the assistant can call
 Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated from the running server).
 
 | Group | Tool | What it does |
 | --- | --- | --- |
+| **Plan-first** | `plan_templates` | List the plan templates (DIALux lighting, load and maximum demand, cable and protection, drawing from reference, SLD/BOQ, whole project) and the Excel sheets. |
+| | `plan_define` | Start a plan for a large request: goal, success criteria, scope, optional template. Draft until you approve it. |
+| | `plan_show` / `plan_next` | Current plan with progress, what is ready, and exactly what is needed from you. |
+| | `plan_approve` | Record that you agreed to the goal (only after you said yes). |
+| | `plan_update_step` | Start/finish a step with a result; refused while inputs are missing. |
+| | `plan_provide_input` | Record a file/value/decision you supplied; unblocks the steps that need it. |
+| | `plan_add_step` / `plan_add_input` / `plan_note` | Extend the plan; record assumptions, decisions and their sources. |
+| **Excel inputs** | `workbook_create` | Create an Excel sheet for you to fill in (load schedule, lighting requirements, luminaire list, cable/protection inputs). |
+| | `workbook_read` | Check the filled-in sheet: missing fields, bad numbers, factors outside 0-1, duplicates (row and column given). |
+| | `load_summary` | Connected load and maximum demand by floor/board/category and essential loads, using only the factors you entered. |
 | **Live editing** (Windows + AutoCAD) | `live_connect` | Attach to the open drawing; report name, layers, entity counts, unit scale. Start here. |
 | | `live_selftest` | Create, move, route and delete test objects to prove the connection works. |
 | | `live_scan` | Find symbols (touching LINEs clustered per layer) in the open drawing. |
@@ -173,6 +187,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 | --- | --- |
 | `ACAD_MCP_WORKSPACE` | Folder for models and outputs (default `./acad_mcp_workspace`). |
 | `ACAD_MCP_BACKEND` | `dxf` (default, offline) or `autocad` (COM) for the offline generator. |
+| `ACAD_MCP_REQUIRE_PLAN` | `1` = strict: tools that change drawings refuse until a plan goal is defined and approved. Off by default. |
 | `ACAD_MCP_ALLOW_COMMANDS` | `1` enables `acad_run_command` and `sch_run_lisp`. Off by default because they can change any open drawing. |
 
 ---
@@ -194,6 +209,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 │   ├── live.py                    LIVE editing of the open AutoCAD drawing (COM)
 │   ├── schematic.py               AutoCAD Electrical schematic read + AutoLISP probe
 │   ├── symbols.py                 plan-symbol geometry in your reference style
+│   ├── plan.py  workbook.py       plan-first engine and templates; Excel input sheets and load summary
 │   ├── dialux.py                  DIALux export import, alignment, luminaire list, lighting schedule
 │   ├── planner.py  model.py       changesets and the floor model store (offline)
 │   ├── views.py  export.py        generate the four views; DXF/PNG/PDF/manifest
@@ -206,6 +222,7 @@ Full parameters for every tool: **[docs/tools.md](docs/tools.md)** (generated fr
 │   └── gen_tool_docs.py           builds docs/tools.md from the server
 ├── docs/
 │   ├── windows-setup.md           install + troubleshooting
+│   ├── planning.md                plan-first workflow, plan templates, Excel input sheets
 │   ├── dialux.md                  importing a DIALux lighting layout
 │   ├── live.md                    live mode and schematic mode guide
 │   └── tools.md                   every tool and parameter (generated)
