@@ -55,7 +55,11 @@ GROUPS: list[tuple[str, str, list[str]]] = [
       "live_place", "live_import_luminaires", "live_move", "live_delete", "live_assign", "live_route", "live_add_text",
       "live_add_polyline", "live_zoom", "live_undo", "live_save", "live_place_from_table",
       "live_verify_placement", "live_circuit_lengths", "live_inventory", "live_sanitize", "live_resync",
-      "work_log"]),
+      "work_log", "live_acceptance_run"]),
+    ("AutoCAD Electrical project (read, report, audit)",
+     "Read `.wdp` projects and schematics from drawing files or the open drawing; reports to Excel; "
+     "audits. Guide: docs/electrical.md.",
+     ["ae_project", "ae_read", "ae_report", "ae_audit", "ae_capture_install"]),
     ("Mode switch", "Choose between plan-symbol tools and AutoCAD Electrical schematic tools.",
      ["live_set_mode"]),
     ("Schematic mode (AutoCAD Electrical)",
@@ -92,7 +96,9 @@ def render() -> str:
            f"All {len(tools)} MCP tools, generated from the running server "
            "(`python scripts/gen_tool_docs.py`). Do not edit by hand.", "",
            "Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates are in "
-           "the drawing's units.", "", "| Group | Tools |", "| --- | --- |"]
+           "the drawing's units. Each tool carries MCP safety hints (read-only / destructive), shown "
+           "in italics under its name, so clients can auto-approve the read-only ones.", "",
+           "| Group | Tools |", "| --- | --- |"]
     for title, _, names in GROUPS:
         out.append(f"| {title} | {', '.join(f'`{n}`' for n in names)} |")
     out.append("")
@@ -102,7 +108,11 @@ def render() -> str:
             t = tools[n]
             props = t.inputSchema.get("properties", {})
             req = set(t.inputSchema.get("required", []))
-            out += [f"### `{n}`", "", " ".join((t.description or "").split()), ""]
+            ann = t.annotations
+            hint = ("Read-only." if ann and ann.readOnlyHint else
+                    "Can remove or overwrite work: confirm with the user first."
+                    if ann and ann.destructiveHint else "Changes work (additive or undoable).")
+            out += [f"### `{n}`", "", f"_{hint}_", "", " ".join((t.description or "").split()), ""]
             if props:
                 out += ["| Parameter | Type | Required | Default |", "| --- | --- | --- | --- |"]
                 for p, s in props.items():

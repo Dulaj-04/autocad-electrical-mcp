@@ -28,8 +28,10 @@ class Ent:
 
 
 class Att:
-    def __init__(self, tag, text):
+    def __init__(self, tag, text, point=None):
         self.TagString, self.TextString = tag, text
+        if point is not None:
+            self.InsertionPoint = (point[0], point[1], 0.0)
 
 
 class Collection(list):
@@ -127,10 +129,11 @@ class Doc:
     def SetVariable(self, name, value):
         self.vars[name] = value
 
-    def add_block(self, name, pos, attrs, layer="SYMS"):
+    def add_block(self, name, pos, attrs, layer="SYMS", points=None):
         e = Ent("AcDbBlockReference", layer, InsertionPoint=(pos[0], pos[1], 0.0),
                 EffectiveName=name, HasAttributes=bool(attrs))
-        e.GetAttributes = lambda: [Att(k, v) for k, v in attrs.items()]
+        pts = points or {}
+        e.GetAttributes = lambda: [Att(k, v, pts.get(k)) for k, v in attrs.items()]
         return self._add(e)
 
     def _lisp(self, cmd):

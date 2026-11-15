@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import os
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
@@ -15,6 +16,10 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from . import (
     __version__,
+    aecapture,
+    aeproject,
+    aereports,
+    aeschematic,
     dialux,
     export,
     inspection,
@@ -99,6 +104,18 @@ even when the header says metres.
 """
 
 mcp = FastMCP("acad-electrical", instructions=INSTRUCTIONS)
+
+
+def set_workspace(path: Path) -> None:
+    """Point EVERY store at one workspace folder (floor models, plans, protected bases, work log,
+    live tracking), so a --workspace override cannot split one project across two folders."""
+    global _LIVE
+    CFG.workspace = Path(path).resolve()
+    STORE.root = CFG.workspace
+    PLANS.root = CFG.workspace
+    BASES.file = CFG.workspace / ".bases.json"
+    OPS.workspace = CFG.workspace
+    _LIVE = None  # recreated on next use with the new tracking folder
 
 
 def _model(project: str, floor: str, create: bool = False) -> dict[str, Any]:
@@ -1352,6 +1369,159 @@ def work_log(limit: int = 30) -> dict[str, Any]:
     return out
 
 
+# --------------------------------------------------------------------------- AutoCAD Electrical project
+def _ae_load(target: str | None, source: str, wire_layers: list[str] | None,
+             tolerance: float | None) -> tuple[list[dict], dict | None, list[dict]]:
+    """Analysed drawings for a .wdp / drawing / folder (source='file') or the open drawing."""
+    if source == "open":
+        raw = _guard(lambda: aeschematic.raw_from_open(_live(), wire_layers))
+        return [aeschematic.analyse(raw, tolerance)], None, []
+    if not target:
+        raise ValueError("Give target: a .wdp project, a .dxf/.dwg drawing or a folder of drawings "
+                         "(or source='open' for the drawing open in AutoCAD).")
+    entries, project = aeproject.drawing_paths(target)
+    drawings, unreadable = [], []
+    for e in entries:
+        if not e["exists"]:
+            continue
+        try:
+            d = aeschematic.analyse(aeschematic.raw_from_dxf(e["path"], wire_layers), tolerance)
+            d["project_entry"] = {k: e[k] for k in ("index", "file", "descriptions", "section",
+                                                    "subsection")}
+            drawings.append(d)
+        except Exception as exc:  # noqa: BLE001 - one bad drawing must not stop the project
+            reason = str(exc)
+            if e["path"].lower().endswith(".dwg"):
+                reason += (" To read DWGs offline install the ODA File Converter, or save the "
+                           "drawings as DXF, or open the drawing and use source='open'.")
+            unreadable.append({"drawing": e["file"], "reason": reason})
+    return drawings, project, unreadable
+
+
+@mcp.tool()
+def ae_project(path: str) -> dict[str, Any]:
+    """AUTOCAD ELECTRICAL: read a project file (.wdp) without AutoCAD: project description lines,
+    settings, and the drawing list with each drawing's description, section and sub-section, which
+    drawings are missing on disk, duplicates, and any lines the reader did not recognise. Read-only."""
+    return _guard(lambda: aeproject.parse(path))
+
+
+@mcp.tool()
+def ae_read(target: str | None = None, source: Literal["file", "open"] = "file",
+            wire_layers: list[str] | None = None, tolerance: float | None = None,
+            detail: Literal["summary", "full"] = "summary", limit: int = 100) -> dict[str, Any]:
+    """AUTOCAD ELECTRICAL: read schematics. target = a .wdp project (every drawing in it), one
+    .dxf/.dwg, or a folder; or source='open' for the drawing open in AutoCAD. Returns per drawing:
+    parent and child components (tag, family, description, INST/LOC, manufacturer, catalog, pins),
+    terminals, wire numbers, signal arrows and the wire networks derived from the wire lines.
+    wire_layers defaults to layers whose name contains WIRE. detail='full' lists the items (up to
+    limit per kind). Read-only."""
+    drawings, project, unreadable = _ae_load(target, source, wire_layers, tolerance)
+    out: dict[str, Any] = {"drawings": [aeschematic.summary(d) for d in drawings],
+                           "unreadable": unreadable}
+    if project:
+        out["project"] = {k: project[k] for k in ("project", "drawing_count", "missing", "warnings")}
+    if detail == "full":
+        strip = ("pins",)
+        out["components"] = [{k: v for k, v in c.items() if k not in strip}
+                             for d in drawings for c in d["components"]][:limit]
+        out["terminals"] = [{k: v for k, v in t.items() if k not in strip}
+                            for d in drawings for t in d["terminals"]][:limit]
+        out["wire_numbers"] = [w for d in drawings for w in d["wire_numbers"]][:limit]
+        out["signals"] = [s for d in drawings for s in d["signals"]][:limit]
+        out["networks"] = [{**{k: v for k, v in n.items()}, "drawing": d["drawing"]}
+                           for d in drawings for n in d.get("nets", [])][:limit]
+    out["note"] = ("Wire networks are derived from geometry (touching wire ends and T-junctions); "
+                   "check important wiring results against AutoCAD Electrical's own reports.")
+    return out
+
+
+@mcp.tool()
+def ae_report(report: Literal["all", "bom", "components", "terminals", "wire_numbers", "from_to",
+                              "cross_reference"] = "all",
+              target: str | None = None, source: Literal["file", "open"] = "file",
+              project: str | None = None, wire_layers: list[str] | None = None,
+              tolerance: float | None = None, export: bool = True, limit: int = 50) -> dict[str, Any]:
+    """AUTOCAD ELECTRICAL: project reports from the schematics (same target/source as ae_read):
+    bill of materials (grouped by manufacturer + catalog), component list, terminal list with
+    connected wire numbers, wire number list, wire from/to list, and parent/child cross-reference.
+    export=true writes one Excel workbook (a sheet per report plus the audit) to
+    <workspace>/<project>/reports/. Returns the first `limit` rows of each report."""
+    drawings, proj, unreadable = _ae_load(target, source, wire_layers, tolerance)
+    reports = aereports.build(drawings)
+    chosen = list(aereports.REPORTS) if report == "all" else [report]
+    out: dict[str, Any] = {"drawings_read": len(drawings), "unreadable": unreadable,
+                           "counts": {k: len(reports[k]) for k in chosen},
+                           "rows": {k: reports[k][:limit] for k in chosen}}
+    if export:
+        name = safe_name(project or (proj or {}).get("project") or "electrical", "project")
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        path = CFG.workspace / name / "reports" / f"ae_reports_{stamp}.xlsx"
+        issues = aereports.audit(drawings, proj, unreadable, max_items=100000)["issues"]
+        meta = {"Source": target or "open drawing", "Drawings read": len(drawings),
+                "Unreadable": len(unreadable), "Generated": time.strftime("%Y-%m-%d %H:%M")}
+        out["workbook"] = aereports.export_xlsx(path, {k: reports[k] for k in chosen}, issues, meta)
+    return out
+
+
+@mcp.tool()
+def ae_audit(target: str | None = None, source: Literal["file", "open"] = "file",
+             wire_layers: list[str] | None = None, tolerance: float | None = None,
+             max_items: int = 300) -> dict[str, Any]:
+    """AUTOCAD ELECTRICAL: check a project or drawing (same target/source as ae_read): duplicate
+    tags and terminals, children without a parent, components missing catalog data or a
+    description, wires without a number, one number on separate wires, wire numbers off any wire,
+    unconnected pins, unpaired signal arrows, drawings missing or unreadable. Issues are sorted
+    error > warning > info. Read-only."""
+    drawings, proj, unreadable = _ae_load(target, source, wire_layers, tolerance)
+    res = aereports.audit(drawings, proj, unreadable, max_items)
+    res["drawings_read"] = len(drawings)
+    return res
+
+
+def _write_capture(kind: str, data: dict[str, Any]) -> str:
+    d = CFG.workspace / "captures"
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"{kind}_{time.strftime('%Y%m%d-%H%M%S')}.json"
+    path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+    return str(path)
+
+
+@mcp.tool()
+def ae_capture_install(extra_commands: list[str] | None = None) -> dict[str, Any]:
+    """AUTOCAD ELECTRICAL (Windows): record what THIS install exposes, in one JSON file to send back:
+    version and detection evidence, loaded modules, which Electrical commands exist, the AutoLISP
+    functions under c:ae / c:wd / c:ace / wd_ / ace_, and the block names and attribute names (with
+    offsets) used by the symbols in the open drawing. Open a typical schematic first. Read-only:
+    nothing in the drawing changes."""
+    sch = Schematic(_live())
+    data = _guard(lambda: aecapture.capture_install(sch, extra_commands))
+    path = _write_capture("install", data)
+    cmds = data.get("commands")
+    return {"file": path,
+            "electrical_loaded": (data.get("detect") or {}).get("electrical_loaded"),
+            "commands_found": sorted(k for k, v in cmds.items() if v == "yes")
+            if isinstance(cmds, dict) and "error" not in cmds else cmds,
+            "blocks_sampled": len((data.get("drawing") or {}).get("sample_blocks", [])),
+            "tell_the_user": f"Saved {path}. Please send this file back so schematic writing tools "
+                             "can be built for this exact version."}
+
+
+@mcp.tool()
+def live_acceptance_run(confirm_scratch: bool) -> dict[str, Any]:
+    """LIVE: test every plan-mode live tool once on the ACTIVE drawing (connect, inventory, texts,
+    scan, place each device type, assign, move, route, lengths, list, text, polyline, undo, zoom,
+    resync, delete) and clean up, then save a pass/fail report as JSON. Use a NEW scratch drawing:
+    pass confirm_scratch=true only after the user confirmed the active drawing is a scratch copy."""
+    if not confirm_scratch:
+        raise ValueError("Open a new scratch drawing in AutoCAD, confirm it with the user, then call "
+                         "again with confirm_scratch=true. Never run this on a project drawing.")
+    live = _plan()
+    res = aecapture.acceptance_run(live)
+    res["file"] = _write_capture("acceptance", res)
+    return res
+
+
 @mcp.prompt()
 def start_project(project: str, folder: str) -> str:
     """Begin a multi-floor project: inventory the inputs, then plan and ask."""
@@ -1388,6 +1558,40 @@ def plain_language() -> str:
             "technical term, and never create files or formats I did not ask for.")
 
 # --------------------------------------------------------------------------- CLI
+# --------------------------------------------------------------------------- tool safety hints
+# Every tool is classified, so MCP clients can auto-approve the safe ones and ask before the rest.
+# READ_ONLY: changes nothing (no drawing, model, plan or file). DESTRUCTIVE: can remove or overwrite
+# existing work (deletes, undo, saves, overwrite flags, raw commands). Everything else adds or edits
+# in an undoable or additive way. tests/test_hints.py fails if a new tool is not classified.
+READ_ONLY = {
+    "plan_templates", "plan_show", "plan_next", "plan_impact", "intake_scan", "base_check",
+    "verify_placement", "register_reference", "inspect_drawing", "list_devices", "list_floors",
+    "preview_changes", "validate_drawing", "dialux_inspect", "dialux_align", "import_luminaire_list",
+    "lighting_schedule", "live_connect", "live_scan", "live_list_devices", "live_texts",
+    "live_inventory", "live_verify_placement", "live_circuit_lengths", "work_log", "sch_detect",
+    "sch_check_commands", "sch_modules", "sch_read", "sch_probe", "acad_status", "ae_project",
+    "ae_read", "ae_audit",
+}
+DESTRUCTIVE = {
+    "apply_changes", "undo_last", "sync_from_drawing", "live_delete", "live_undo", "live_save",
+    "live_sanitize", "live_resync", "dxf_sanitize", "floor_from_base", "workbook_create",
+    "prepare_floor_model", "plan_define", "acad_run_command", "sch_run_lisp", "live_acceptance_run",
+}
+
+
+def _apply_hints() -> None:
+    from mcp.types import ToolAnnotations
+
+    for tool in mcp._tool_manager.list_tools():
+        ro = tool.name in READ_ONLY
+        tool.annotations = ToolAnnotations(readOnlyHint=ro,
+                                           destructiveHint=False if ro else tool.name in DESTRUCTIVE,
+                                           openWorldHint=False)
+
+
+_apply_hints()
+
+
 def _selftest() -> int:
     import asyncio
     import sys
@@ -1438,8 +1642,7 @@ def main(argv: list[str] | None = None) -> None:
         print(make_sample_floor(args.make_sample))
         return
     if args.workspace:
-        CFG.workspace = Path(args.workspace).resolve()
-        STORE.root = CFG.workspace
+        set_workspace(Path(args.workspace))
     if args.backend:
         CFG.backend = args.backend
     CFG.workspace.mkdir(parents=True, exist_ok=True)

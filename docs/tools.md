@@ -1,8 +1,8 @@
 # Tool reference
 
-All 83 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
+All 89 MCP tools, generated from the running server (`python scripts/gen_tool_docs.py`). Do not edit by hand.
 
-Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates are in the drawing's units.
+Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates are in the drawing's units. Each tool carries MCP safety hints (read-only / destructive), shown in italics under its name, so clients can auto-approve the read-only ones.
 
 | Group | Tools |
 | --- | --- |
@@ -16,7 +16,8 @@ Floor tools take `project` and `floor` (letters, digits, `_`, `-`). Coordinates 
 | Apply, undo, sync | `preview_changes`, `apply_changes`, `undo_last`, `sync_from_drawing` |
 | DIALux import and lighting schedule | `dialux_inspect`, `dialux_align`, `import_luminaire_list`, `dialux_import`, `lighting_schedule` |
 | Output | `generate_views`, `export_package`, `validate_drawing` |
-| Live editing (plan symbols) | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_import_luminaires`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save`, `live_place_from_table`, `live_verify_placement`, `live_circuit_lengths`, `live_inventory`, `live_sanitize`, `live_resync`, `work_log` |
+| Live editing (plan symbols) | `live_connect`, `live_selftest`, `live_scan`, `live_adopt`, `live_list_devices`, `live_texts`, `live_place`, `live_import_luminaires`, `live_move`, `live_delete`, `live_assign`, `live_route`, `live_add_text`, `live_add_polyline`, `live_zoom`, `live_undo`, `live_save`, `live_place_from_table`, `live_verify_placement`, `live_circuit_lengths`, `live_inventory`, `live_sanitize`, `live_resync`, `work_log`, `live_acceptance_run` |
+| AutoCAD Electrical project (read, report, audit) | `ae_project`, `ae_read`, `ae_report`, `ae_audit`, `ae_capture_install` |
 | Mode switch | `live_set_mode` |
 | Schematic mode (AutoCAD Electrical) | `sch_detect`, `sch_check_commands`, `sch_modules`, `sch_read`, `sch_probe`, `sch_run_lisp` |
 | AutoCAD utilities (Windows) | `acad_status`, `acad_open`, `acad_run_command` |
@@ -27,11 +28,15 @@ Define a goal for large requests, track steps and the inputs needed from you. Gu
 
 ### `plan_templates`
 
+_Read-only._
+
 List the plan templates (lighting_from_dialux, load_and_max_demand, cable_and_protection, drawing_from_reference, sld_and_boq, full_project) with their steps, the inputs they need and which steps are not automated yet, and the Excel input workbooks available.
 
 _No parameters._
 
 ### `plan_define`
+
+_Can remove or overwrite work: confirm with the user first._
 
 Start a plan for a large request BEFORE doing any work: a title, a one-paragraph goal, the success criteria ('done when...'), what is in and out of scope, and optionally a template that pre-fills the steps and the inputs needed from the user. The plan starts as a draft: show it to the user and call plan_approve once they agree. Use replace=true to overwrite an existing plan. floors = the floors to draw (e.g. ["GF","1F"]): drawing is then allowed on ONE approved floor at a time (plan_approve_floor), and the next floor only after the user confirmed the previous one.
 
@@ -49,6 +54,8 @@ Start a plan for a large request BEFORE doing any work: a title, a one-paragraph
 
 ### `plan_show`
 
+_Read-only._
+
 Current plan for a project: goal, approval, step statuses, inputs received/missing, what is ready now and exactly what is needed from the user, plus a markdown checklist to show them. Call this at the start of a session and after every step.
 
 | Parameter | Type | Required | Default |
@@ -57,6 +64,8 @@ Current plan for a project: goal, approval, step statuses, inputs received/missi
 
 ### `plan_next`
 
+_Read-only._
+
 What to do next: steps that are ready, steps that are blocked (and by what), and the list of inputs the user must supply with how to supply them (including the Excel template to use). Ask the user for these in plain words.
 
 | Parameter | Type | Required | Default |
@@ -64,6 +73,8 @@ What to do next: steps that are ready, steps that are blocked (and by what), and
 | `project` | string | yes |  |
 
 ### `plan_approve`
+
+_Changes work (additive or undoable)._
 
 Record that the USER agreed to the goal and scope. Pass user_confirmed=true only after the user has actually said yes in this conversation; never on your own initiative.
 
@@ -74,6 +85,8 @@ Record that the USER agreed to the goal and scope. Pass user_confirmed=true only
 | `note` | string | no | `None` |
 
 ### `plan_update_step`
+
+_Changes work (additive or undoable)._
 
 Update a step. Finishing a step ('done') needs a result (files written, counts, key numbers, decisions) and is refused while its inputs are missing or earlier steps are unfinished, unless force=true with a note saying why. Call this as each step starts and finishes.
 
@@ -88,6 +101,8 @@ Update a step. Finishing a step ('done') needs a result (files written, counts, 
 
 ### `plan_provide_input`
 
+_Changes work (additive or undoable)._
+
 Record that the user supplied an input: reference = file path, value, or a short description of the decision; or not_applicable=true if it does not apply. Unblocks the steps that need it.
 
 | Parameter | Type | Required | Default |
@@ -99,6 +114,8 @@ Record that the user supplied an input: reference = file path, value, or a short
 | `not_applicable` | boolean | no | `False` |
 
 ### `plan_add_step`
+
+_Changes work (additive or undoable)._
 
 Add a step to the plan (e.g. when the scope grows). Say which inputs it needs and which steps must finish first.
 
@@ -114,6 +131,8 @@ Add a step to the plan (e.g. when the scope grows). Say which inputs it needs an
 
 ### `plan_add_input`
 
+_Changes work (additive or undoable)._
+
 Add something the plan needs from the user: why it is needed and exactly how to provide it. workbook = name of an Excel template (see plan_templates) if it should be supplied that way.
 
 | Parameter | Type | Required | Default |
@@ -128,6 +147,8 @@ Add something the plan needs from the user: why it is needed and exactly how to 
 
 ### `plan_note`
 
+_Changes work (additive or undoable)._
+
 Record an assumption, a decision or a note with its source (who/what it came from), so it is visible in the plan and in the report. Use it for every number or choice the user gave you. kind='open' records something still unresolved (e.g. a symbol overlap not fixed yet): it stays in still_open until plan_resolve.
 
 | Parameter | Type | Required | Default |
@@ -138,6 +159,8 @@ Record an assumption, a decision or a note with its source (who/what it came fro
 | `source` | string | no | `None` |
 
 ### `plan_approve_floor`
+
+_Changes work (additive or undoable)._
 
 Open ONE floor for drawing after the user said yes to starting it. Only one floor is open at a time: the previous floor must first be confirmed by the user (plan_confirm_floor), or pass force=true to work on several. In strict mode drawing tools refuse for floors that are not open.
 
@@ -151,6 +174,8 @@ Open ONE floor for drawing after the user said yes to starting it. Only one floo
 
 ### `plan_confirm_floor`
 
+_Changes work (additive or undoable)._
+
 Record that the USER checked the floor and accepts it. Only after this can the next floor be opened, and the floor is locked against further drawing until re-opened. Show a preview first (get_preview_image or live_zoom) and ask; never confirm on your own.
 
 | Parameter | Type | Required | Default |
@@ -162,6 +187,8 @@ Record that the USER checked the floor and accepts it. Only after this can the n
 
 ### `plan_resolve`
 
+_Changes work (additive or undoable)._
+
 Mark an open item (plan_note kind='open'; numbers are in still_open) as resolved.
 
 | Parameter | Type | Required | Default |
@@ -171,6 +198,8 @@ Mark an open item (plan_note kind='open'; numbers are in still_open) as resolved
 | `how` | string | no | `None` |
 
 ### `plan_impact`
+
+_Read-only._
 
 What a change affects downstream, so you can tell the user BEFORE changing anything. Examples: demand_factors, luminaires, circuits, routes, cable_lengths, loads, transformer, architecture. Shows e.g. that demand factors change cable sizes, SLD, BOQ and report but not the CAD drawings.
 
@@ -184,6 +213,8 @@ Inventory a project folder, protect base drawings, make per-floor working copies
 
 ### `intake_scan`
 
+_Read-only._
+
 Inventory a folder of project inputs on this PC (read-only): every drawing, workbook, PDF, image and DIALux file with its kind, floor, size, hash and (for DXF) units, extents and layers. Reports floors missing from a set, duplicate files, floors whose scale or units disagree, heavy DIALux layers and files that cannot be imported. Run this first on a new project folder.
 
 | Parameter | Type | Required | Default |
@@ -192,6 +223,8 @@ Inventory a folder of project inputs on this PC (read-only): every drawing, work
 | `expected_floors` | list of string | no | `None` |
 
 ### `base_register`
+
+_Changes work (additive or undoable)._
 
 Protect a drawing (architectural base, template) so the MCP never writes to it: live tools refuse while it is the active drawing and live_save refuses to save over it. Records its hash.
 
@@ -202,11 +235,15 @@ Protect a drawing (architectural base, template) so the MCP never writes to it: 
 
 ### `base_check`
 
+_Read-only._
+
 Prove the registered base drawings are unchanged (hash comparison); lists any that changed or went missing.
 
 _No parameters._
 
 ### `floor_from_base`
+
+_Can remove or overwrite work: confirm with the user first._
 
 Copy a base drawing to a new working file for one floor (default name <floor>_<base name>). The base is registered as protected and only read. Open the copy in AutoCAD and draw there.
 
@@ -219,6 +256,8 @@ Copy a base drawing to a new working file for one floor (default name <floor>_<b
 | `overwrite` | boolean | no | `False` |
 
 ### `dxf_sanitize`
+
+_Can remove or overwrite work: confirm with the user first._
 
 Make a slim working copy of a heavy DXF (e.g. a raw DIALux export): erase layers such as DLX_OBJ, DLX_CALC, DLX_APERT and optionally scale to millimetres (from_units='m' multiplies by 1000). The source is only read and its hash is checked afterwards; the destination may not be a registered base file. For a DWG use live_sanitize in AutoCAD, or save it as DXF first.
 
@@ -237,6 +276,8 @@ Draw from a placement sheet, verify counts, export lengths and quantities as nam
 
 ### `place_from_table`
 
+_Changes work (additive or undoable)._
+
 Build a CHANGESET from a filled placement_table workbook (workbook_create kind=placement_table): one row per device with room, type, X, Y, circuit. Refuses rooms that all got identical device mixes without a note (a copied template) unless allow_identical=true. offset/limit do a batch at a time and report what remains. Repeats create no duplicates. Nothing is drawn until apply_changes.
 
 | Parameter | Type | Required | Default |
@@ -251,6 +292,8 @@ Build a CHANGESET from a filled placement_table workbook (workbook_create kind=p
 
 ### `verify_placement`
 
+_Read-only._
+
 Compare the floor model with the placement table: expected vs actual device count for every room and type, with a list of mismatches. Run after applying and before showing the floor.
 
 | Parameter | Type | Required | Default |
@@ -260,6 +303,8 @@ Compare the floor model with the placement table: expected vs actual device coun
 | `path` | string | yes |  |
 
 ### `export_circuit_lengths`
+
+_Changes work (additive or undoable)._
 
 Circuit lengths from the routes in the floor model, as a workbook range for cable sizing and the BOQ (<workspace>/<project>/output/<floor>/circuit_lengths.xlsx, named range Circuit_Lengths_<floor>). factor = ceiling-route allowance (default 1.1). unit_to_m = metres per drawing unit if the model's units are not known. Circuits without a route are listed.
 
@@ -271,6 +316,8 @@ Circuit lengths from the routes in the floor model, as a workbook range for cabl
 | `unit_to_m` | number | no | `None` |
 
 ### `export_quantities`
+
+_Changes work (additive or undoable)._
 
 Counts per floor, device type and luminaire type from the floor models, as a workbook range (<workspace>/<project>/output/quantities.xlsx, named range Quantities) for the BOQ and report.
 
@@ -285,6 +332,8 @@ Excel sheets for you to fill in, a validating reader, and the load summary.
 
 ### `workbook_create`
 
+_Can remove or overwrite work: confirm with the user first._
+
 Create an Excel input sheet for the user to fill in (instructions sheet, 'Data' sheet with required columns marked *, dropdowns and visible formulas). Saved under <workspace>/<project>/inputs/. Tell the user the path and what to fill in; then call workbook_read once they have saved it. An existing file is never overwritten unless asked.
 
 | Parameter | Type | Required | Default |
@@ -294,6 +343,8 @@ Create an Excel input sheet for the user to fill in (instructions sheet, 'Data' 
 | `overwrite` | boolean | no | `False` |
 
 ### `workbook_read`
+
+_Changes work (additive or undoable)._
 
 Read and validate a filled-in sheet (default: the project's inputs/<kind>.xlsx): missing required fields, bad numbers, factors outside 0-1, unknown categories, duplicate ids. Returns the rows and a list of problems with row numbers to give the user. If plan_input_id is given and the sheet has no errors, that plan input is marked provided.
 
@@ -305,6 +356,8 @@ Read and validate a filled-in sheet (default: the project's inputs/<kind>.xlsx):
 | `plan_input_id` | string | no | `None` |
 
 ### `load_summary`
+
+_Changes work (additive or undoable)._
 
 Connected load and maximum demand from the filled-in load schedule, by floor, board and category, plus the essential loads. Demand uses ONLY the demand factors the user entered: rows without one are listed and left out of the demand total (never assumed to be 1), and the result is marked incomplete. Refuses a sheet that has errors.
 
@@ -320,6 +373,8 @@ Read drawings and models. Nothing is changed.
 
 ### `register_reference`
 
+_Read-only._
+
 Hash and inventory a reference DXF (or DWG with ODA converter): layers, entity counts, blocks, units, extents, layouts and text entities (candidate room labels). Read-only.
 
 | Parameter | Type | Required | Default |
@@ -327,6 +382,8 @@ Hash and inventory a reference DXF (or DWG with ODA converter): layers, entity c
 | `path` | string | yes |  |
 
 ### `inspect_drawing`
+
+_Read-only._
 
 Inventory a generated output drawing of a floor (layers, entity counts, device ids).
 
@@ -338,6 +395,8 @@ Inventory a generated output drawing of a floor (layers, entity counts, device i
 
 ### `list_devices`
 
+_Read-only._
+
 List the logical devices, circuits, routes and rooms of a floor model.
 
 | Parameter | Type | Required | Default |
@@ -347,6 +406,8 @@ List the logical devices, circuits, routes and rooms of a floor model.
 
 ### `list_floors`
 
+_Read-only._
+
 List floors that have a model in a project.
 
 | Parameter | Type | Required | Default |
@@ -354,6 +415,8 @@ List floors that have a model in a project.
 | `project` | string | yes |  |
 
 ### `get_preview_image`
+
+_Changes work (additive or undoable)._
 
 Render a PNG of a generated view so the drawing can be looked at.
 
@@ -369,6 +432,8 @@ Create the floor model and set the drawing template.
 
 ### `prepare_floor_model`
 
+_Can remove or overwrite work: confirm with the user first._
+
 Create/update the floor model: register the architectural reference (hash + units check) and rooms. Each room is {"id","name","bounds":[minx,miny,maxx,maxy]} in drawing units. Existing rooms are kept unless replace_rooms=true; differing names are reported, not overwritten silently. The reference file itself is never modified.
 
 | Parameter | Type | Required | Default |
@@ -380,6 +445,8 @@ Create/update the floor model: register the architectural reference (hash + unit
 | `replace_rooms` | boolean | no | `False` |
 
 ### `prepare_template`
+
+_Changes work (additive or undoable)._
 
 Customise the drawing template. Keys: layers {name:{color,lineweight,description}}, symbol_size, text_height (drawing units), status, title_block {project,drawn_by,notes[]}. Regenerate views afterwards with generate_views.
 
@@ -395,6 +462,8 @@ Propose devices, circuits and routes. Each call returns a changeset; nothing is 
 
 ### `plan_devices`
 
+_Changes work (additive or undoable)._
+
 Propose luminaires, switches, sockets, data, ac, emergency and db devices. Each device: {"type","x","y"} plus optional id, rotation, room, circuit, db, note. Same-type devices at the same position (within tolerance) are treated as already present, so repeating a plan creates no duplicates. Returns a changeset to preview/apply.
 
 | Parameter | Type | Required | Default |
@@ -406,6 +475,8 @@ Propose luminaires, switches, sockets, data, ac, emergency and db devices. Each 
 | `tolerance` | number | no | `0.01` |
 
 ### `propose_lighting_grid`
+
+_Changes work (additive or undoable)._
 
 Propose a regular luminaire grid in a room (placement draft only, no lux calculation).
 
@@ -421,6 +492,8 @@ Propose a regular luminaire grid in a room (placement draft only, no lux calcula
 
 ### `set_circuit_assignment`
 
+_Changes work (additive or undoable)._
+
 Create/update a circuit, bind it to a distribution board and assign devices to it.
 
 | Parameter | Type | Required | Default |
@@ -433,6 +506,8 @@ Create/update a circuit, bind it to a distribution board and assign devices to i
 | `device_ids` | list of string | no | `None` |
 
 ### `plan_routes`
+
+_Changes work (additive or undoable)._
 
 Propose an orthogonal route from the circuit's DB through its devices (nearest-first, or in the order given). The route is associated with the circuit/DB in the model; geometric crossings imply no connectivity. Draft drawing aid, not cable routing/sizing.
 
@@ -449,6 +524,8 @@ Guarded writes with undo and read-back.
 
 ### `preview_changes`
 
+_Read-only._
+
 Show what a changeset would do (adds/updates/removals, assumptions, conflicts).
 
 | Parameter | Type | Required | Default |
@@ -458,6 +535,8 @@ Show what a changeset would do (adds/updates/removals, assumptions, conflicts).
 | `changeset_id` | string | yes |  |
 
 ### `apply_changes`
+
+_Can remove or overwrite work: confirm with the user first._
 
 Apply a changeset: guarded by model revision, reference hash and manual-edit detection; snapshots the previous revision (undo_last), regenerates all four DXF views and reads them back for validation.
 
@@ -470,6 +549,8 @@ Apply a changeset: guarded by model revision, reference hash and manual-edit det
 
 ### `undo_last`
 
+_Can remove or overwrite work: confirm with the user first._
+
 Restore the model to the revision before the last apply_changes and regenerate views.
 
 | Parameter | Type | Required | Default |
@@ -479,6 +560,8 @@ Restore the model to the revision before the last apply_changes and regenerate v
 | `overwrite_manual_edits` | boolean | no | `False` |
 
 ### `sync_from_drawing`
+
+_Can remove or overwrite work: confirm with the user first._
 
 Adopt manual edits: read device positions from an edited output DXF back into the model. Devices only in the drawing are reported (not adopted). Routes touching moved devices are dropped and must be re-planned. Use remove_missing=true to delete devices erased in CAD.
 
@@ -495,6 +578,8 @@ Bring a DIALux lighting layout into the floor model and total the lighting load.
 
 ### `dialux_inspect`
 
+_Read-only._
+
 Look inside a DIALux DWG/DXF export (read-only): block names with counts, layers, attributes, positions and units. Run this first, then choose which block names are luminaires for dialux_import. DWG needs the ODA File Converter on this machine; otherwise save/export it as DXF. Set include_nested=true if the luminaires sit inside one big block.
 
 | Parameter | Type | Required | Default |
@@ -503,6 +588,8 @@ Look inside a DIALux DWG/DXF export (read-only): block names with counts, layers
 | `include_nested` | boolean | no | `False` |
 
 ### `dialux_align`
+
+_Read-only._
 
 Work out the transform (shift, rotation, scale) that maps the DIALux export onto the architectural drawing, from two points you can identify in both (e.g. two column corners): source_a/b in the DIALux file, target_a/b in the architectural drawing. Pass the result as `transform` to dialux_import. 'residual' is the leftover error at the second point (drawing units); a large value means the points do not match.
 
@@ -515,6 +602,8 @@ Work out the transform (shift, rotation, scale) that maps the DIALux export onto
 
 ### `import_luminaire_list`
 
+_Read-only._
+
 Read a luminaire list (CSV, or XLSX with openpyxl) exported from DIALux or Excel: type/name, quantity, wattage and luminous flux, with the columns detected automatically (override with columns={'type': 'Header', 'watts': 'Header', ...}). Read-only. Wattage is never invented: types without one are listed in missing_watts.
 
 | Parameter | Type | Required | Default |
@@ -524,6 +613,8 @@ Read a luminaire list (CSV, or XLSX with openpyxl) exported from DIALux or Excel
 | `columns` | object | no | `None` |
 
 ### `dialux_import`
+
+_Changes work (additive or undoable)._
 
 Import luminaires from a DIALux DWG/DXF export into the floor model as a CHANGESET (nothing is drawn until apply_changes). block_names/layers choose what to import (see dialux_inspect); dx/dy/rotation/scale or `transform` (from dialux_align) position it on the architectural drawing; type_map maps block names to device types (default luminaire; e.g. {'EXIT_SIGN': 'emergency'}); luminaire_list (CSV/XLSX path) and/or watts_by_type supply wattage and lumens; rooms are assigned from the model's room bounds. Re-importing updates in place, no duplicates; replace_previous=true also removes earlier DIALux devices that are no longer in the file.
 
@@ -550,6 +641,8 @@ Import luminaires from a DIALux DWG/DXF export into the floor model as a CHANGES
 
 ### `lighting_schedule`
 
+_Read-only._
+
 Lighting schedule for a floor from the model: luminaire counts by type per room, installed wattage per room and floor (and W/m2 when room area is known). Wattage comes from the device (e.g. imported from DIALux) or watts_by_type; luminaires without one are reported as missing, never guessed. unit_to_m = metres per drawing unit (0.001 for a millimetre drawing). This is installed load only: no demand factor, no lux calculation.
 
 | Parameter | Type | Required | Default |
@@ -565,6 +658,8 @@ Generate the drawing views and the export package.
 
 ### `generate_views`
 
+_Changes work (additive or undoable)._
+
 (Re)generate DXF views from the canonical model, e.g. after prepare_template.
 
 | Parameter | Type | Required | Default |
@@ -576,6 +671,8 @@ Generate the drawing views and the export package.
 
 ### `export_package`
 
+_Changes work (additive or undoable)._
+
 Write the drawing package: DXF per view, DWG (needs live AutoCAD or ODA File Converter; otherwise reported as skipped), PNG previews, A3 PDF sheets and manifest.json with hashes and the validation result.
 
 | Parameter | Type | Required | Default |
@@ -586,6 +683,8 @@ Write the drawing package: DXF per view, DWG (needs live AutoCAD or ODA File Con
 | `overwrite_manual_edits` | boolean | no | `False` |
 
 ### `validate_drawing`
+
+_Read-only._
 
 Validate model consistency and the generated files: devices/circuits/routes, labels, layers, architecture preserved vs reference, reference hash, manual edits, reopen check.
 
@@ -600,17 +699,23 @@ Windows + AutoCAD / AutoCAD Electrical running. These edit the **open drawing di
 
 ### `live_connect`
 
+_Read-only._
+
 LIVE (Windows): attach to the drawing open in AutoCAD / AutoCAD Electrical and report its name, entity counts per layer and unit scale. Start here. All live_* tools edit the open drawing directly, so the user sees every change on screen.
 
 _No parameters._
 
 ### `live_selftest`
 
+_Changes work (additive or undoable)._
+
 LIVE: prove the connection works. Creates a DB, luminaire and route on the ACTIVE drawing, moves and reads them back, then removes them. Run on a scratch drawing the first time.
 
 _No parameters._
 
 ### `live_scan`
+
+_Read-only._
 
 LIVE: find symbols in the open drawing (loose LINEs that touch are clustered per device layer, as in the reference drawings). Returns type, centre and size of each, not yet tracked.
 
@@ -619,6 +724,8 @@ LIVE: find symbols in the open drawing (loose LINEs that touch are clustered per
 | `layers` | list of string | no | `None` |
 
 ### `live_adopt`
+
+_Changes work (additive or undoable)._
 
 LIVE: give the existing symbols in the open drawing stable ids (e.g. 4F-LUM-01, DB-4F) by grouping them, so they can be moved, deleted or assigned by id. Geometry is not changed. Use min_size/max_size (drawing units) to skip tiny pieces such as socket pins.
 
@@ -631,11 +738,15 @@ LIVE: give the existing symbols in the open drawing stable ids (e.g. 4F-LUM-01, 
 
 ### `live_list_devices`
 
+_Read-only._
+
 LIVE: tracked devices/routes with positions read fresh from the drawing (flags devices the user moved by hand, and ones deleted by hand).
 
 _No parameters._
 
 ### `live_texts`
+
+_Read-only._
 
 LIVE: read TEXT in the open drawing with positions (e.g. layer 'TEXT' for room names, to work out where a room is before placing devices).
 
@@ -645,6 +756,8 @@ LIVE: read TEXT in the open drawing with positions (e.g. layer 'TEXT' for room n
 | `contains` | string | no | `None` |
 
 ### `live_place`
+
+_Changes work (additive or undoable)._
 
 LIVE: draw a device symbol (reference style, correct layer) at x,y in the open drawing now. Same type at the same spot is not duplicated. One undo step.
 
@@ -660,6 +773,8 @@ LIVE: draw a device symbol (reference style, correct layer) at x,y in the open d
 | `room` | string | no | `None` |
 
 ### `live_import_luminaires`
+
+_Changes work (additive or undoable)._
 
 LIVE: draw luminaires from a DIALux DWG/DXF export into the OPEN AutoCAD drawing, as one undo step. offset/limit draw a batch at a time (report 'remaining'; check in with the user between batches). Same parameters as dialux_import. dry_run=true (default) only reports what would be drawn (counts per block, first positions); call again with dry_run=false to draw. Already placed luminaires at the same spot are skipped.
 
@@ -685,6 +800,8 @@ LIVE: draw luminaires from a DIALux DWG/DXF export into the OPEN AutoCAD drawing
 
 ### `live_move`
 
+_Changes work (additive or undoable)._
+
 LIVE: move a tracked device to x,y or by dx,dy. Routes through it are flagged stale.
 
 | Parameter | Type | Required | Default |
@@ -697,6 +814,8 @@ LIVE: move a tracked device to x,y or by dx,dy. Routes through it are flagged st
 
 ### `live_delete`
 
+_Can remove or overwrite work: confirm with the user first._
+
 LIVE: delete a tracked device from the open drawing (one undo step).
 
 | Parameter | Type | Required | Default |
@@ -704,6 +823,8 @@ LIVE: delete a tracked device from the open drawing (one undo step).
 | `device_id` | string | yes |  |
 
 ### `live_assign`
+
+_Changes work (additive or undoable)._
 
 LIVE: record which circuit / distribution board a device belongs to.
 
@@ -714,6 +835,8 @@ LIVE: record which circuit / distribution board a device belongs to.
 | `db` | string | no | `None` |
 
 ### `live_route`
+
+_Changes work (additive or undoable)._
 
 LIVE: draw (or redraw, replacing the old one) an orthogonal route from the DB through the circuit's devices on the lighting/power/AC wiring layer, labelled with the circuit id.
 
@@ -727,6 +850,8 @@ LIVE: draw (or redraw, replacing the old one) an orthogonal route from the DB th
 
 ### `live_add_text`
 
+_Changes work (additive or undoable)._
+
 LIVE: add a TEXT note/label to the open drawing.
 
 | Parameter | Type | Required | Default |
@@ -739,6 +864,8 @@ LIVE: add a TEXT note/label to the open drawing.
 
 ### `live_add_polyline`
 
+_Changes work (additive or undoable)._
+
 LIVE: draw a polyline [[x,y],...] on a layer in the open drawing.
 
 | Parameter | Type | Required | Default |
@@ -747,6 +874,8 @@ LIVE: draw a polyline [[x,y],...] on a layer in the open drawing.
 | `points` | list of list of number | yes |  |
 
 ### `live_zoom`
+
+_Changes work (additive or undoable)._
 
 LIVE: pan/zoom AutoCAD's view to x,y so the user can see the change.
 
@@ -758,11 +887,15 @@ LIVE: pan/zoom AutoCAD's view to x,y so the user can see the change.
 
 ### `live_undo`
 
+_Can remove or overwrite work: confirm with the user first._
+
 LIVE: undo the last chat instruction in AutoCAD (each live_* call is one undo step).
 
 _No parameters._
 
 ### `live_save`
+
+_Can remove or overwrite work: confirm with the user first._
 
 LIVE: save the open drawing (or Save As to path).
 
@@ -771,6 +904,8 @@ LIVE: save the open drawing (or Save As to path).
 | `path` | string | no | `None` |
 
 ### `live_place_from_table`
+
+_Changes work (additive or undoable)._
 
 LIVE: draw devices from a filled placement_table into the OPEN drawing, as one undo step. Dry run by default. limit (default 40) draws a batch at a time: tell the user what was drawn and ask before the next batch (remaining is reported). Same refusal of copied-identical rooms as place_from_table. Already placed devices at the same spot are skipped.
 
@@ -785,6 +920,8 @@ LIVE: draw devices from a filled placement_table into the OPEN drawing, as one u
 
 ### `live_verify_placement`
 
+_Read-only._
+
 LIVE: compare the devices tracked in the open drawing with the placement table: expected vs actual per room and type, with mismatches. Run before showing the floor to the user.
 
 | Parameter | Type | Required | Default |
@@ -793,6 +930,8 @@ LIVE: compare the devices tracked in the open drawing with the placement table: 
 | `path` | string | yes |  |
 
 ### `live_circuit_lengths`
+
+_Read-only._
 
 LIVE: route lengths per circuit from the routes drawn in the open drawing (x factor for the ceiling route). Lists circuits with no route and routes made stale by a moved device. Pass export_project to also write <workspace>/<project>/output/live_circuit_lengths.xlsx with a named range for cable sizing.
 
@@ -804,6 +943,8 @@ LIVE: route lengths per circuit from the routes drawn in the open drawing (x fac
 
 ### `live_inventory`
 
+_Read-only._
+
 LIVE: fast census of the open drawing, safe for huge DIALux exports (counts come from AutoCAD itself): entities per layer, types on the biggest layers, block definitions, units, extents, and warnings about heavy DIALux layers. Run on an unfamiliar drawing before anything else.
 
 | Parameter | Type | Required | Default |
@@ -811,6 +952,8 @@ LIVE: fast census of the open drawing, safe for huge DIALux exports (counts come
 | `top_layers` | integer | no | `6` |
 
 ### `live_sanitize`
+
+_Can remove or overwrite work: confirm with the user first._
 
 LIVE: in the OPEN drawing, erase heavy layers (e.g. DLX_OBJ, DLX_CALC, DLX_APERT) and optionally scale (1000 for metres to millimetres). Runs inside AutoCAD so it is fast. Refuses a registered base drawing; the real run needs dry_run=false AND confirm_copy=true (it must be a working copy). Locked layers cannot be erased. Untested on real AutoCAD: try on a throwaway copy first.
 
@@ -824,6 +967,8 @@ LIVE: in the OPEN drawing, erase heavy layers (e.g. DLX_OBJ, DLX_CALC, DLX_APERT
 
 ### `live_resync`
 
+_Can remove or overwrite work: confirm with the user first._
+
 LIVE: after a dropped connection or a crash: compare what the tools tracked with what is really in the open drawing (missing, untracked), and optionally forget entries that are gone.
 
 | Parameter | Type | Required | Default |
@@ -832,17 +977,101 @@ LIVE: after a dropped connection or a crash: compare what the tools tracked with
 
 ### `work_log`
 
+_Read-only._
+
 What the drawing tools did, newest last (placed, moved, routed, sanitised, saved), plus the plan's still-open list. Use it to resume after an interruption and to report what changed.
 
 | Parameter | Type | Required | Default |
 | --- | --- | --- | --- |
 | `limit` | integer | no | `30` |
 
+### `live_acceptance_run`
+
+_Can remove or overwrite work: confirm with the user first._
+
+LIVE: test every plan-mode live tool once on the ACTIVE drawing (connect, inventory, texts, scan, place each device type, assign, move, route, lengths, list, text, polyline, undo, zoom, resync, delete) and clean up, then save a pass/fail report as JSON. Use a NEW scratch drawing: pass confirm_scratch=true only after the user confirmed the active drawing is a scratch copy.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `confirm_scratch` | boolean | yes |  |
+
+## AutoCAD Electrical project (read, report, audit)
+
+Read `.wdp` projects and schematics from drawing files or the open drawing; reports to Excel; audits. Guide: docs/electrical.md.
+
+### `ae_project`
+
+_Read-only._
+
+AUTOCAD ELECTRICAL: read a project file (.wdp) without AutoCAD: project description lines, settings, and the drawing list with each drawing's description, section and sub-section, which drawings are missing on disk, duplicates, and any lines the reader did not recognise. Read-only.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `path` | string | yes |  |
+
+### `ae_read`
+
+_Read-only._
+
+AUTOCAD ELECTRICAL: read schematics. target = a .wdp project (every drawing in it), one .dxf/.dwg, or a folder; or source='open' for the drawing open in AutoCAD. Returns per drawing: parent and child components (tag, family, description, INST/LOC, manufacturer, catalog, pins), terminals, wire numbers, signal arrows and the wire networks derived from the wire lines. wire_layers defaults to layers whose name contains WIRE. detail='full' lists the items (up to limit per kind). Read-only.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `target` | string | no | `None` |
+| `source` | `file` \| `open` | no | `file` |
+| `wire_layers` | list of string | no | `None` |
+| `tolerance` | number | no | `None` |
+| `detail` | `summary` \| `full` | no | `summary` |
+| `limit` | integer | no | `100` |
+
+### `ae_report`
+
+_Changes work (additive or undoable)._
+
+AUTOCAD ELECTRICAL: project reports from the schematics (same target/source as ae_read): bill of materials (grouped by manufacturer + catalog), component list, terminal list with connected wire numbers, wire number list, wire from/to list, and parent/child cross-reference. export=true writes one Excel workbook (a sheet per report plus the audit) to <workspace>/<project>/reports/. Returns the first `limit` rows of each report.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `report` | `all` \| `bom` \| `components` \| `terminals` \| `wire_numbers` \| `from_to` \| `cross_reference` | no | `all` |
+| `target` | string | no | `None` |
+| `source` | `file` \| `open` | no | `file` |
+| `project` | string | no | `None` |
+| `wire_layers` | list of string | no | `None` |
+| `tolerance` | number | no | `None` |
+| `export` | boolean | no | `True` |
+| `limit` | integer | no | `50` |
+
+### `ae_audit`
+
+_Read-only._
+
+AUTOCAD ELECTRICAL: check a project or drawing (same target/source as ae_read): duplicate tags and terminals, children without a parent, components missing catalog data or a description, wires without a number, one number on separate wires, wire numbers off any wire, unconnected pins, unpaired signal arrows, drawings missing or unreadable. Issues are sorted error > warning > info. Read-only.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `target` | string | no | `None` |
+| `source` | `file` \| `open` | no | `file` |
+| `wire_layers` | list of string | no | `None` |
+| `tolerance` | number | no | `None` |
+| `max_items` | integer | no | `300` |
+
+### `ae_capture_install`
+
+_Changes work (additive or undoable)._
+
+AUTOCAD ELECTRICAL (Windows): record what THIS install exposes, in one JSON file to send back: version and detection evidence, loaded modules, which Electrical commands exist, the AutoLISP functions under c:ae / c:wd / c:ace / wd_ / ace_, and the block names and attribute names (with offsets) used by the symbols in the open drawing. Open a typical schematic first. Read-only: nothing in the drawing changes.
+
+| Parameter | Type | Required | Default |
+| --- | --- | --- | --- |
+| `extra_commands` | list of string | no | `None` |
+
 ## Mode switch
 
 Choose between plan-symbol tools and AutoCAD Electrical schematic tools.
 
 ### `live_set_mode`
+
+_Changes work (additive or undoable)._
 
 Choose what the live tools work with. 'plan' (default): floor-plan symbols and routes (live_place, live_route...). 'schematic': AutoCAD Electrical schematics (sch_* tools); the plan-level drawing tools are then blocked so the two are never mixed by accident. Only switch to 'schematic' when the user asks to work with schematics.
 
@@ -856,11 +1085,15 @@ Read and probe only for now. Enabled with `live_set_mode('schematic')`.
 
 ### `sch_detect`
 
+_Read-only._
+
 SCHEMATIC: check the open drawing / AutoCAD Electrical: product and version, whether the Electrical commands are loaded, whether the AutoLISP bridge works, and how many components, wire numbers and wire lines the drawing has. Run this first in schematic mode.
 
 _No parameters._
 
 ### `sch_check_commands`
+
+_Read-only._
 
 SCHEMATIC: ask AutoCAD whether each command name is registered (e.g. AEPROJECT). Unlike sch_probe this also sees commands provided by compiled Electrical modules. Read-only.
 
@@ -870,11 +1103,15 @@ SCHEMATIC: ask AutoCAD whether each command name is registered (e.g. AEPROJECT).
 
 ### `sch_modules`
 
+_Read-only._
+
 SCHEMATIC: list the compiled modules (ARX) loaded in the open AutoCAD session; shows whether AutoCAD Electrical's own modules are active. Read-only.
 
 _No parameters._
 
 ### `sch_read`
+
+_Read-only._
 
 SCHEMATIC: read the open schematic: components (tag, description, installation, location, manufacturer, catalog, terminals), wire numbers and wire-layer line counts. Read-only.
 
@@ -885,6 +1122,8 @@ SCHEMATIC: read the open schematic: components (tag, description, installation, 
 
 ### `sch_probe`
 
+_Read-only._
+
 SCHEMATIC: list the AutoLISP functions/commands this AutoCAD Electrical install exposes whose name starts with prefix (try c:ae, c:wd, c:ace, wd_, ace_). Read-only; used to learn the real command names before insert/wire tools are built.
 
 | Parameter | Type | Required | Default |
@@ -893,6 +1132,8 @@ SCHEMATIC: list the AutoLISP functions/commands this AutoCAD Electrical install 
 | `limit` | integer | no | `400` |
 
 ### `sch_run_lisp`
+
+_Can remove or overwrite work: confirm with the user first._
 
 SCHEMATIC (advanced): evaluate an AutoLISP expression in the open drawing and return its printed result. Can change the drawing, so it is disabled unless the server was started with ACAD_MCP_ALLOW_COMMANDS=1.
 
@@ -906,11 +1147,15 @@ Direct AutoCAD COM helpers.
 
 ### `acad_status`
 
+_Read-only._
+
 (Windows) Report the running AutoCAD / AutoCAD Electrical session via COM.
 
 _No parameters._
 
 ### `acad_open`
+
+_Changes work (additive or undoable)._
 
 (Windows) Open a drawing read-only in the running AutoCAD session.
 
@@ -919,6 +1164,8 @@ _No parameters._
 | `path` | string | yes |  |
 
 ### `acad_run_command`
+
+_Can remove or overwrite work: confirm with the user first._
 
 (Windows) Send a command line to the active AutoCAD document. Disabled unless the server was started with ACAD_MCP_ALLOW_COMMANDS=1 because commands can modify any open drawing.
 

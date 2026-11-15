@@ -15,7 +15,11 @@ The `live_*` tools talk to the running AutoCAD / AutoCAD Electrical through COM 
 1. Open a **scratch/new drawing** in AutoCAD.
 2. In the chat: *"Run live_selftest."* It draws a DB, a luminaire and a route, moves them, reads
    them back and deletes them. You should see them flash up and disappear.
-3. Then open your real drawing, e.g. `4F_Electrical_Complete.dwg`, and say *"live_connect"*.
+3. Optional, recommended: *"Run the live acceptance run."* `live_acceptance_run` tries every
+   live tool once on the scratch drawing (place each device type, assign, move, route, lengths,
+   text, polyline, undo, zoom, resync, delete), cleans up and saves a pass/fail report as JSON
+   under `<workspace>/captures/`. Send that file back if anything failed.
+4. Then open your real drawing, e.g. `4F_Electrical_Complete.dwg`, and say *"live_connect"*.
 
 ## How it keeps track of things
 - Devices and routes are drawn as plain LINE/polyline/TEXT geometry in the reference style, on the
@@ -55,10 +59,14 @@ Available now (read-only, safe on a real project):
 - `sch_probe(prefix)`: lists the AutoLISP functions/commands your install exposes (`c:ae`, `c:wd`,
   `c:ace`, `wd_`, `ace_`).
 - `sch_run_lisp(expression)`: advanced; off unless `ACAD_MCP_ALLOW_COMMANDS=1`.
+- `ae_read`, `ae_report`, `ae_audit` with `source="open"`: components, terminals, wire networks,
+  BOM, from/to and audit for the open drawing (they also read whole `.wdp` projects from disk;
+  see [electrical.md](electrical.md)). These work in either mode.
+- `ae_capture_install`: one JSON file describing your install for building the write tools.
 
-**Not built yet: inserting components, drawing connected wires, wire numbering, reports.** These
-must call AutoCAD Electrical's own commands, whose names/arguments differ by version, so they will
-be built from what `sch_probe` reports on *your* install plus a sample schematic.
+**Not built yet: inserting components, drawing connected wires, wire numbering.** These must call
+AutoCAD Electrical's own commands, whose names and arguments differ by version, so they will be
+built from the `ae_capture_install` file from *your* install plus a sample schematic.
 
 How the AutoLISP bridge works: the server sends an expression with `SendCommand` and reads the
 result back through the `USERS1` system variable in chunks. AutoCAD must be idle (no running
@@ -66,7 +74,10 @@ command or dialog; press Esc first).
 
 ## Limits
 - Plan mode draws **plan-level symbols**, not AutoCAD Electrical schematic components. Schematic
-  mode currently only reads and probes (see above); writing is the next step.
+  mode currently reads, reports, audits and probes (see above); writing is the next step.
 - Model space only. No layouts/viewports yet.
-- Validated against an in-memory fake of AutoCAD's object model and your reference drawings, not
-  yet against a live AutoCAD: report any COM error text so it can be fixed.
+- `live_selftest` is confirmed on AutoCAD Electrical 2026. The other live tools are tested
+  against an in-memory fake of AutoCAD's object model: run `live_acceptance_run` once on a scratch
+  drawing and send the report so any COM difference can be fixed.
+- Tracking (which group is which device) is stored per drawing name **and** folder, so two
+  drawings with the same file name in different folders never share ids.
