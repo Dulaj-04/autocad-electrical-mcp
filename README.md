@@ -17,6 +17,7 @@
   <a href="#where-it-stands">Where it stands</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#skill-and-plugin">Skill and plugin</a> ·
+  <a href="#whats-new-in-020">What's new</a> ·
   <a href="#roadmap">Roadmap</a> ·
   <a href="#commands">Commands</a>
 </p>
@@ -455,6 +456,24 @@ The repository is also a Claude Code plugin and plugin marketplace:
 | `.mcp.json` | Starts the server for the plugin with `uvx` |
 
 Other agents that read `SKILL.md` skills can use the `skills/autocad-electrical/` folder as is, with the MCP server configured separately.
+
+### Free and Pro skills
+| | Free `autocad-electrical` (this repository) | Pro `autocad-electrical-pro` (separate) |
+| --- | --- | --- |
+| Tools covered | the main tools for each job | every tool, with when to use it and whether it needs your approval |
+| Guides | short: setup, Electrical projects, live editing, building services | full: setup, troubleshooting, live editing, schematic mode, offline drawings, planning and floor gates |
+| Playbooks for complete jobs | none | 8: project audit and handover pack, panel builder pack, revision comparison, first run on a new PC, multi-floor layouts, DIALux to lighting schedule, load schedule to maximum demand, cable schedule inputs |
+| Question sets with defaults, handover note templates | none | included |
+
+The server and the free skill are MIT and stay free. The Pro skill is maintained separately by the author of this repository.
+
+## What's new in 0.2.0
+- **AutoCAD Electrical projects:** `ae_project`, `ae_read`, `ae_report`, `ae_audit` read `.wdp` projects and schematics from files or the open drawing, and produce the BOM, terminal, wire-number, from/to and cross-reference reports and the audit in Excel.
+- **First run on your PC:** `live_acceptance_run` tests every live tool on a scratch drawing; `ae_capture_install` records what your AutoCAD Electrical version exposes.
+- **Skill and plugin:** the bundled `autocad-electrical` skill and a one-step Claude Code plugin install.
+- **Safety hints:** every tool is marked read-only or destructive for MCP clients.
+- **Fixes:** `--workspace` now moves plans, protected bases and the work log too; live tracking no longer mixes up drawings with the same name in different folders.
+- **CI:** the skill is checked against the server's tools; a trial Windows job runs the tests.
 
 ## Roadmap
 | Next | What | Needs |
