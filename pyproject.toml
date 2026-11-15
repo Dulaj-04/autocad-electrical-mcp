@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "acad-electrical-mcp"
-version = "0.1.0"
-description = "MCP server for creating, revising, validating and exporting editable AutoCAD Electrical floor drawings"
+version = "0.2.0"
+description = "MCP server and skill for AutoCAD Electrical: read, audit and report on projects, edit the open drawing, floor layouts, DIALux lighting and load schedules"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

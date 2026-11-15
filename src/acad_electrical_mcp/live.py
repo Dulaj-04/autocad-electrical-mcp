@@ -11,8 +11,10 @@ The COM object is injected so the logic can be tested against a fake without Aut
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import os
 import re
 import time
 from pathlib import Path
@@ -137,12 +139,30 @@ class LiveSession:
     def _ms(self):
         return self.com.call(lambda: self.doc.ModelSpace)
 
+    def _state_paths(self) -> tuple[Path, Path]:
+        """(current, legacy) tracking files. The current file is keyed by drawing name AND folder,
+        so two drawings with the same file name in different folders never share tracking. The
+        legacy name-only file is still read until a folder-specific one has been written."""
+        doc = self.doc
+        name = re.sub(r"[^A-Za-z0-9_.-]", "_", str(self.com.call(lambda: doc.Name)))
+        legacy = self.state_dir / f"{name}.json"
+        try:
+            full = str(self.com.call(lambda: doc.FullName) or "")
+        except Exception:  # noqa: BLE001 - an unsaved drawing has no path
+            full = ""
+        folder = os.path.dirname(full)
+        if not folder:
+            return legacy, legacy
+        key = hashlib.sha1(os.path.normcase(os.path.abspath(folder)).encode()).hexdigest()[:8]
+        return self.state_dir / f"{name}.{key}.json", legacy
+
     def _state_path(self) -> Path:
-        name = re.sub(r"[^A-Za-z0-9_.-]", "_", str(self.com.call(lambda: self.doc.Name)))
-        return self.state_dir / f"{name}.json"
+        return self._state_paths()[0]
 
     def _load(self) -> dict[str, Any]:
-        p = self._state_path()
+        p, legacy = self._state_paths()
+        if not p.exists() and legacy.exists():
+            p = legacy
         data = json.loads(p.read_text()) if p.exists() else {}
         data.setdefault("devices", {})
         data.setdefault("routes", {})

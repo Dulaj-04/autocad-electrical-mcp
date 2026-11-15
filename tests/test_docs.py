@@ -36,3 +36,10 @@ def test_relative_links_resolve():
             if target.startswith(("http://", "https://", "mailto:")):
                 continue
             assert (md.parent / target).exists(), f"{md.name}: broken link {target}"
+
+
+def test_skill_and_plugin_files_match_server():
+    spec = importlib.util.spec_from_file_location("check_skill", ROOT / "scripts" / "check_skill.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.problems() == []

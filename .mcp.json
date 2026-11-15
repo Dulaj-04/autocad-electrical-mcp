@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "acad-electrical": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/Dulaj-04/autocad-electrical-mcp", "acad-electrical-mcp"]
+    }
+  }
+}

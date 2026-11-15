@@ -49,16 +49,16 @@ def tool_count() -> int:
         from acad_electrical_mcp import server
         return len(asyncio.run(server.mcp.list_tools()))
     except Exception:  # package not installed: keep the picture buildable
-        return 83
+        return 89
 
 
 def banner() -> str:
     b = t(60, 98, "autocad-electrical-mcp", 48, TXT, "700")
-    b += t(62, 134, "Plan, draw and check electrical installations", 22, MUTED)
-    b += t(62, 162, "in AutoCAD Electrical, by chatting.", 22, MUTED)
+    b += t(62, 134, "An AI companion for AutoCAD Electrical: audit projects,", 22, MUTED)
+    b += t(62, 162, "report, edit live, and draw installations by chatting.", 22, MUTED)
     x = 62
-    for label, c in (("Live in AutoCAD", BLUE), ("Offline DXF / PDF", GREEN), ("DIALux import", AMBER),
-                     ("Excel inputs", VIOLET), ("Plan-first", RED)):
+    for label, c in (("Electrical projects", RED), ("Live in AutoCAD", BLUE), ("DXF / PDF", GREEN),
+                     ("DIALux", AMBER), ("Excel", VIOLET)):
         b += pill(x, 188, label, c)
         x += 14 + 8.2 * len(label) + 12
     b += t(62, 250, "Claude Desktop, Claude Code and any MCP client (ChatGPT via HTTPS)", 15, MUTED)
@@ -91,22 +91,24 @@ def architecture() -> str:
         b += box(60, 150 + i * 56, 190, 42, BG, EDGE, 8) + t(155, 177 + i * 56, s, 15, MUTED, anchor="middle")
     b += t(155, 378, "chat in plain language", 13, AMBER, anchor="middle")
     b += arrow(272, 240, 338, 240) + arrow(338, 262, 272, 262)
-    b += box(340, 70, 420, 340, "#13203a", BLUE, 14, 2)
+    b += box(340, 70, 420, 432, "#13203a", BLUE, 14, 2)
     b += t(550, 104, f"acad-electrical-mcp ({tool_count()} tools)", 18, BLUE, "700", "middle")
     mods = (("Plan + floor gates", "goal, steps, one floor at a time", RED), ("Drawing model", "changesets, preview, undo", GREEN),
             ("Live editor", "COM, one undo step per call", BLUE), ("DIALux importer", "inspect, align, import", AMBER),
-            ("Excel sheets", "create, check, load summary", VIOLET), ("Protected bases", "hashes, copies, no writes", GREY))
+            ("Excel sheets", "create, check, load summary", VIOLET), ("Protected bases", "hashes, copies, no writes", GREY),
+            ("Electrical projects", ".wdp, schematics, networks", RED), ("Reports + audits", "BOM, from/to, checks", RED))
     for i, (n, d, c) in enumerate(mods):
         x, y = 360 + (i % 2) * 200, 124 + (i // 2) * 92
         b += box(x, y, 190, 80, CARD, c, 10) + t(x + 95, y + 34, n, 14, TXT, "600", "middle") + t(x + 95, y + 58, d, 12, MUTED, anchor="middle")
     outs = (("AutoCAD / AutoCAD Electrical", "open drawing edited live", BLUE), ("Drawing files", "DXF, PNG, A3 PDF, manifest", GREEN),
-            ("Excel workbooks", "load schedule, cable inputs", VIOLET), ("DIALux exports", "DWG/DXF layout, luminaire list", AMBER))
+            ("Excel workbooks", "inputs, reports, quantities", VIOLET), ("DIALux exports", "DWG/DXF layout, luminaire list", AMBER),
+            ("Electrical projects", ".wdp + schematic drawings", RED))
     for i, (n, d, c) in enumerate(outs):
         y = 90 + i * 78
         b += box(840, y, 260, 64, CARD, c, 10) + t(970, y + 28, n, 15, TXT, "600", "middle") + t(970, y + 49, d, 12, MUTED, anchor="middle")
-        b += arrow(762, 240, 838, y + 32) if i not in (3,) else arrow(838, y + 32, 762, 240)
-    b += t(550, 440, "Reference drawings are never modified. Everything produced is a DRAFT drawing aid.", 14, MUTED, anchor="middle")
-    return svg(1140, 470, b, "Architecture of autocad-electrical-mcp")
+        b += arrow(762, 286, 838, y + 32) if i not in (3, 4) else arrow(838, y + 32, 762, 286)
+    b += t(550, 534, "Reference drawings are never modified. Everything produced is a DRAFT drawing aid.", 14, MUTED, anchor="middle")
+    return svg(1140, 564, b, "Architecture of autocad-electrical-mcp")
 
 
 def plan_flow() -> str:

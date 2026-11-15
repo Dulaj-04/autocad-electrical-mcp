@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/banner.svg" alt="autocad-electrical-mcp: plan, draw and check electrical installations in AutoCAD Electrical, by chatting" width="100%">
+  <img src="docs/images/banner.svg" alt="autocad-electrical-mcp: an AI companion for AutoCAD Electrical: audit projects, report, edit live and draw installations by chatting" width="100%">
 </p>
 
 <p align="center">
@@ -16,10 +16,15 @@
   <a href="#things-to-try">Things to try</a> ·
   <a href="#where-it-stands">Where it stands</a> ·
   <a href="#quick-start">Quick start</a> ·
+  <a href="#skill-and-plugin">Skill and plugin</a> ·
+  <a href="#whats-new-in-020">What's new</a> ·
+  <a href="#roadmap">Roadmap</a> ·
   <a href="#commands">Commands</a>
 </p>
 
-**autocad-electrical-mcp** connects an AI assistant (Claude, or ChatGPT through a connector) to your electrical design work. You describe what you want in plain language; it plans the work with you, asks for the inputs it needs, draws and edits the drawings, and checks the result.
+**autocad-electrical-mcp** is an AI companion for **AutoCAD Electrical** and electrical installation design. It connects an assistant (Claude, or ChatGPT through a connector) to your projects: it reads and audits AutoCAD Electrical projects and schematics, produces their reports, edits the drawing open in AutoCAD as you chat, and plans, draws and checks building-services layouts. You describe what you want in plain language; it plans the work with you, asks for the inputs it needs, and checks the result.
+
+> *"Read LINE3.wdp, tell me which drawings are missing, audit the project, and give me the BOM and the wire from/to list in Excel."*
 
 > *"Add a socket on the north wall of the Classroom, put it on circuit GF-P02, redraw the route, and undo that."*
 > With AutoCAD open the change appears on screen as you type. Without AutoCAD, the same assistant builds the drawings as editable DXF files with PNG and PDF previews.
@@ -42,7 +47,11 @@
 | **Placement tables** | Devices are placed from an Excel table (room, type, X, Y, circuit) in batches, then `verify_placement` compares expected and actual counts per room and type. |
 | **Lengths and quantities** | Circuit lengths (route length × ceiling factor) and device/luminaire counts are exported to Excel as named ranges for cable sizing and the BOQ. |
 | **Recovery** | `work_log` records every drawing change; `live_resync` reconciles tracked devices with what is really in the drawing after a crash or reconnect. |
-| **Schematic mode** (optional) | Reads AutoCAD Electrical schematics (components, tags, wire numbers) and probes your install. Writing schematics is not built yet. |
+| **AutoCAD Electrical projects** | Read a `.wdp` project and every schematic in it, from files or from the open drawing: components, terminals, wire numbers, signal arrows and wire networks. |
+| **Electrical reports** | Bill of materials, component, terminal and wire-number lists, wire from/to, parent/child cross-reference, in one Excel workbook. |
+| **Electrical audits** | Duplicate tags and terminals, children without a parent, missing catalog data, unnumbered or duplicate wire numbers, unpaired signal arrows, missing drawings. |
+| **Schematic mode** | Detects AutoCAD Electrical and probes your install. `ae_capture_install` saves what your version exposes so schematic **writing** can be built for it (not built yet). |
+| **Skill and plugin** | A bundled skill tells the assistant when and how to use the tools; one Claude Code plugin install adds both. Every tool carries read-only / destructive hints so clients can auto-approve the safe ones. |
 
 ## See it in action
 
@@ -181,6 +190,21 @@ Every device is wrapped in a named AutoCAD group `ACADE_<id>`, which survives sa
 ### 8. Schematic mode (optional, read-only for now)
 Say "switch to schematic mode". `sch_detect` reports whether Electrical is loaded (with evidence), `sch_read` lists components, tags and wire numbers, `sch_probe` lists the commands your install exposes. The plan-symbol tools are blocked in this mode so the two are never mixed by accident.
 
+### 9. AutoCAD Electrical project: read, audit, report
+| Step | Tool | Gives you |
+| --- | --- | --- |
+| Open the project | `ae_project` | Drawing list with descriptions, sections and sub-sections; drawings missing on disk; lines the reader did not recognise |
+| See what is in it | `ae_read` | Per drawing: components, children, terminals, wire numbers, signal arrows, wire networks |
+| Check it | `ae_audit` | Errors, warnings and notes with the drawing and tag for each |
+| Report it | `ae_report` | One Excel workbook: BOM, components, terminals, wire numbers, from/to, cross-reference, audit |
+
+Each reads a `.wdp` project, a single drawing or a folder from disk (DXF, or DWG with the free ODA File Converter), or the drawing open in AutoCAD (`source="open"`); both give the same result. Wire networks and the from/to list are derived from the wire geometry, so treat wiring findings as a check against AutoCAD Electrical's own reports. Guide: [docs/electrical.md](docs/electrical.md).
+
+> *Try:* "Audit C:\Projects\Line3\LINE3.wdp and list the errors first."
+
+### 10. First run on a new PC: prove it, then capture your install
+`live_selftest` proves the AutoCAD link; `live_acceptance_run` then tries every live tool once on a scratch drawing and saves a pass/fail report; `ae_capture_install` saves what your AutoCAD Electrical version exposes (commands, functions, symbol attribute names). Sending those two files back is how the untested live tools get confirmed and the schematic writing tools get built for your version.
+
 ## Things to try
 
 | Say this | What happens | Needs |
@@ -208,6 +232,12 @@ Say "switch to schematic mode". `sch_detect` reports whether Electrical is loade
 | "If I change the demand factors, what is affected?" | `plan_impact` before anything changes | nothing |
 | "Plan the whole project from the work plan" | A roadmap of separate plans with what is automated and what is not | the work plan |
 | "Switch to schematic mode and run `sch_detect`" | Evidence on whether Electrical is loaded; counts of components and wires | AutoCAD Electrical |
+| "Read this `.wdp` and tell me which drawings are missing" | Drawing list with sections and descriptions, missing files, unrecognised lines (`ae_project`) | a `.wdp` file |
+| "Audit the project and list the errors first" | Duplicate tags, orphan children, unnumbered wires, missing catalog data... (`ae_audit`) | a `.wdp`, drawing or folder |
+| "Give me the BOM and from/to list in Excel" | One workbook with every report and the audit (`ae_report`) | a `.wdp`, drawing or folder |
+| "Audit the drawing that is open" | The same checks on the open schematic (`source="open"`) | AutoCAD Electrical open |
+| "Run the acceptance run on this scratch drawing" | Every live tool tried once, cleaned up, pass/fail JSON (`live_acceptance_run`) | a new scratch drawing |
+| "Capture my install so schematic tools can be built" | One JSON file with commands, functions and attribute names (`ae_capture_install`) | AutoCAD Electrical with a schematic open |
 
 ## Where it stands
 
@@ -218,10 +248,12 @@ Say "switch to schematic mode". `sch_detect` reports whether Electrical is loade
 | Offline workflow, exports, validation, MCP protocol, plan-first, Excel sheets, DIALux logic | Automated tests on Python 3.10 and 3.12 (CI) |
 | Server install, Claude Desktop connection | Confirmed on a Windows PC |
 | `live_selftest` on **AutoCAD Electrical 2026**, AutoLISP link | Confirmed on real AutoCAD |
-| `live_adopt`, `live_delete`, `live_undo`, `live_zoom`, `live_texts`, `live_import_luminaires`, `live_inventory`, `live_sanitize`, `live_resync`, `live_place_from_table`, `live_verify_placement`, `live_circuit_lengths`, `sch_*` | Tested against a simulated AutoCAD only; try on a scratch copy and report errors |
+| `live_adopt`, `live_delete`, `live_undo`, `live_zoom`, `live_texts`, `live_import_luminaires`, `live_inventory`, `live_sanitize`, `live_resync`, `live_place_from_table`, `live_verify_placement`, `live_circuit_lengths`, `sch_*` | Tested against a simulated AutoCAD only; `live_acceptance_run` on a scratch drawing tests them all in one go: send its report |
+| `.wdp` reading, schematic reading, reports, audits (`ae_*`) | Automated tests on synthetic projects and drawings, from files and from a simulated AutoCAD. **Not yet run on a real AutoCAD Electrical project**: the `.wdp` line markers for sections and descriptions are partly from memory, so unknown lines are reported, not guessed |
 | Floor gates, protected bases, `intake_scan`, `dxf_sanitize`, placement tables, verification, lengths and quantities | Automated tests (offline and simulated AutoCAD) |
 | DIALux import | Tested on synthetic DIALux-style exports; **not yet run on a real DIALux export**. The real export folder was not available when the latest features were built, so run `intake_scan` on it and report the output to tune the importer |
-| Schematic insert / wiring / wire numbering / reports | Not built (needs the AutoCAD Electrical API signatures) |
+| Schematic insert / wiring / wire numbering / retag, panel layout | Not built: needs the `ae_capture_install` file from a real install |
+| Wire from/to | Derived from wire geometry, not AutoCAD Electrical's wire database: a strong check, not a replacement for its reports |
 | Transformer, generator, automated cable sizing and protection, SLD, BOQ | Not built; Excel inputs and formulas exist for cables and protection |
 | Layouts and viewports | Not supported (model space only) |
 
@@ -249,7 +281,7 @@ Step-by-step with troubleshooting: [docs/windows-setup.md](docs/windows-setup.md
 git clone https://github.com/Dulaj-04/autocad-electrical-mcp.git && cd autocad-electrical-mcp
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e .
-acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 83 tools"
+acad-electrical-mcp --selftest                         # prints "SELFTEST OK ... 89 tools"
 acad-electrical-mcp --make-sample sample_floor.dxf     # optional demo drawing
 ```
 Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKSPACE` or `--workspace`).
@@ -268,7 +300,13 @@ Python 3.10+. Output goes to `./acad_mcp_workspace` (change with `ACAD_MCP_WORKS
 }
 ```
 
-**Claude Code**
+**Claude Code, as a plugin (server + skill in one step)** — needs [uv](https://docs.astral.sh/uv/):
+```text
+/plugin marketplace add Dulaj-04/autocad-electrical-mcp
+/plugin install autocad-electrical
+```
+
+**Claude Code, server only**
 ```bash
 claude mcp add acad-electrical -- /full/path/to/.venv/bin/acad-electrical-mcp
 ```
@@ -284,7 +322,7 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 ## Commands
 
 <details>
-<summary><b>MCP tools (83)</b>: what the assistant can call. Full parameters: <a href="docs/tools.md">docs/tools.md</a> (generated from the running server)</summary>
+<summary><b>MCP tools (89)</b>: what the assistant can call. Full parameters: <a href="docs/tools.md">docs/tools.md</a> (generated from the running server)</summary>
 
 | Group | Tool | What it does |
 | --- | --- | --- |
@@ -314,6 +352,7 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 | | `live_circuit_lengths` | Route lengths from the open drawing; lists circuits without a route and stale routes. |
 | **Recovery** | `work_log` | What the tools changed, newest last, plus the plan's open list. |
 | | `live_resync` | Reconcile tracked devices with the open drawing after a crash or reconnect. |
+| | `live_acceptance_run` | Try every live tool once on a scratch drawing, clean up, save a pass/fail report. |
 | **Excel inputs** | `workbook_create` | Create an Excel sheet for you to fill in (load schedule, lighting requirements, luminaire list, cable/protection inputs, placement table). |
 | | `workbook_read` | Check the filled-in sheet: missing fields, bad numbers, factors outside 0-1, duplicates (row and column given). |
 | | `load_summary` | Connected load and maximum demand by floor/board/category and essential loads, using only the factors you entered. |
@@ -333,6 +372,11 @@ Then add `https://abc123.ngrok-free.app/mcp` as a connector (ChatGPT *Settings �
 | | `live_zoom` | Pan/zoom AutoCAD to a spot so you can see the change. |
 | | `live_undo` | Undo the last instruction (one undo step per call). |
 | | `live_save` | Save, or Save As. |
+| **AutoCAD Electrical project** | `ae_project` | Read a `.wdp` project: description, settings, drawing list with sections, missing drawings, unrecognised lines. |
+| | `ae_read` | Components, children, terminals, wire numbers, signal arrows and wire networks per drawing (files or the open drawing). |
+| | `ae_report` | BOM, components, terminals, wire numbers, from/to and cross-reference, exported to one Excel workbook with the audit. |
+| | `ae_audit` | Duplicate tags/terminals, orphan children, missing catalog data, wire-number problems, unpaired signals, missing drawings. |
+| | `ae_capture_install` | Save what your AutoCAD Electrical install exposes (commands, functions, attribute names) to one JSON file. |
 | **Mode** | `live_set_mode` | `plan` (default) or `schematic`. |
 | **Schematic** (AutoCAD Electrical) | `sch_detect` | Product/version, Electrical loaded?, AutoLISP bridge OK?, counts of components/wire numbers/wires. |
 | | `sch_check_commands` | Ask AutoCAD whether command names (e.g. `AEPROJECT`) are registered, including compiled Electrical commands. |
@@ -398,6 +442,48 @@ Prompts offered to MCP clients: `plan_a_request`, `lighting_from_dialux`, `load_
 - **Plan-first:** the server tells the assistant to define a goal and get approval before large work, and stores the plan per project (`plan.json`). Strict mode (`ACAD_MCP_REQUIRE_PLAN=1`) makes drawing-changing tools enforce it.
 - **Safety rails:** base drawings are registered by SHA-256 and refused for any write or save; every drawing change is appended to a work log; each instruction is one undo step; a floor cannot be drawn unless it is the one open floor (always in strict mode, `ACAD_MCP_REQUIRE_PLAN=1`; the assistant is also told to follow the same order without it).
 - **Schematic:** reads AutoCAD Electrical blocks and attributes and talks to AutoLISP by sending an expression and reading the answer back through a system variable.
+- **Electrical projects:** a `.wdp` reader, then each drawing (DXF on disk, or the open drawing over COM) is reduced to the same plain structure: blocks with attributes and attribute positions, and wire lines. Components, pins (`TERMnn` with their `X?TERMnn` connection points), wire networks (touching ends and T-junctions), wire numbers, reports and audits are computed from that, so both sources give identical results.
+- **Skill:** `skills/autocad-electrical/` tells the assistant which tools fit which job and the safety rules; `scripts/check_skill.py` (run in CI) fails if the skill names a tool the server does not have. Every tool carries MCP read-only / destructive hints.
+
+## Skill and plugin
+The repository is also a Claude Code plugin and plugin marketplace:
+
+| File | Purpose |
+| --- | --- |
+| `skills/autocad-electrical/SKILL.md` | When to use the server, which tools fit which job, the rules that keep drawings safe |
+| `skills/autocad-electrical/references/` | Short guides loaded only when needed: setup, Electrical projects, live editing, building services |
+| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` | Plugin and marketplace manifests (`/plugin marketplace add Dulaj-04/autocad-electrical-mcp`) |
+| `.mcp.json` | Starts the server for the plugin with `uvx` |
+
+Other agents that read `SKILL.md` skills can use the `skills/autocad-electrical/` folder as is, with the MCP server configured separately.
+
+### Free and Pro skills
+| | Free `autocad-electrical` (this repository) | Pro `autocad-electrical-pro` (separate) |
+| --- | --- | --- |
+| Tools covered | the main tools for each job | every tool, with when to use it and whether it needs your approval |
+| Guides | short: setup, Electrical projects, live editing, building services | full: setup, troubleshooting, live editing, schematic mode, offline drawings, planning and floor gates |
+| Playbooks for complete jobs | none | 8: project audit and handover pack, panel builder pack, revision comparison, first run on a new PC, multi-floor layouts, DIALux to lighting schedule, load schedule to maximum demand, cable schedule inputs |
+| Question sets with defaults, handover note templates | none | included |
+
+The server and the free skill are MIT and stay free. The Pro skill is maintained separately by the author of this repository.
+
+## What's new in 0.2.0
+- **AutoCAD Electrical projects:** `ae_project`, `ae_read`, `ae_report`, `ae_audit` read `.wdp` projects and schematics from files or the open drawing, and produce the BOM, terminal, wire-number, from/to and cross-reference reports and the audit in Excel.
+- **First run on your PC:** `live_acceptance_run` tests every live tool on a scratch drawing; `ae_capture_install` records what your AutoCAD Electrical version exposes.
+- **Skill and plugin:** the bundled `autocad-electrical` skill and a one-step Claude Code plugin install.
+- **Safety hints:** every tool is marked read-only or destructive for MCP clients.
+- **Fixes:** `--workspace` now moves plans, protected bases and the work log too; live tracking no longer mixes up drawings with the same name in different folders.
+- **CI:** the skill is checked against the server's tools; a trial Windows job runs the tests.
+
+## Roadmap
+| Next | What | Needs |
+| --- | --- | --- |
+| Project profile | Your own layers, symbols (your blocks), naming and extra device types (fire alarm, CCTV, isolators) instead of the built-in defaults | your standards |
+| Fewer, merged tools | One tool where a file and a live version exist today; tool sets loaded by mode | |
+| Calculations and deliverables | Cable sizing and protection checks, bill of quantities, single-line diagram, sheets with title blocks | your design standard's table values |
+| Schematic writing | Insert components and ladders, wires, wire numbering, retag, title-block update | an `ae_capture_install` file |
+| Panel layout | Footprints from the schematic list, balloons, terminal strips | testing on AutoCAD Electrical |
+| Release | PyPI package, one-click Claude Desktop bundle, 1.0 | |
 
 ## Repository layout
 ```
@@ -405,11 +491,18 @@ Prompts offered to MCP clients: `plan_a_request`, `lighting_from_dialux`, `load_
 ├── README.md
 ├── pyproject.toml                 package metadata, dependencies, lint config
 ├── LICENSE
-├── .github/workflows/ci.yml       lint + tests on Python 3.10 and 3.12
+├── .github/workflows/ci.yml       lint + tests on Python 3.10 and 3.12, skill check, Windows trial job
+├── .claude-plugin/                plugin.json + marketplace.json (Claude Code plugin)
+├── .mcp.json                      how the plugin starts the server (uvx)
+├── skills/autocad-electrical/     SKILL.md + references/ (setup, Electrical projects, live, building services)
 ├── src/acad_electrical_mcp/
 │   ├── server.py                  MCP tools, prompts, CLI, transports (stdio / HTTP)
 │   ├── live.py                    LIVE editing of the open AutoCAD drawing (COM)
-│   ├── schematic.py               AutoCAD Electrical schematic read + AutoLISP probe
+│   ├── schematic.py               AutoCAD Electrical detection, AutoLISP bridge and probe
+│   ├── aeproject.py               .wdp project reader (no AutoCAD needed)
+│   ├── aeschematic.py             schematic reader for files and the open drawing; pins, wire networks
+│   ├── aereports.py               BOM, terminals, wire numbers, from/to, cross-reference, audit, Excel
+│   ├── aecapture.py               install capture and live acceptance run
 │   ├── symbols.py                 plan-symbol geometry in your reference style
 │   ├── plan.py  workbook.py       plan-first engine, floor gates, templates; Excel sheets and load summary
 │   ├── bases.py  intake.py        protected base drawings; read-only input-folder scan
@@ -425,6 +518,7 @@ Prompts offered to MCP clients: `plan_a_request`, `lighting_from_dialux`, `load_
 ├── scripts/
 │   ├── install-windows.ps1        one-shot Windows setup
 │   ├── gen_tool_docs.py           builds docs/tools.md from the server
+│   ├── check_skill.py             keeps the skill and plugin files in step with the server
 │   ├── make_readme_images.py      README pictures from the real tools (demo data)
 │   └── make_diagrams.py           README diagrams (SVG)
 ├── docs/
@@ -433,10 +527,11 @@ Prompts offered to MCP clients: `plan_a_request`, `lighting_from_dialux`, `load_
 │   ├── project-workflow.md        multi-floor workflow: intake, gates, bases, tables, verify, recovery
 │   ├── dialux.md                  importing a DIALux lighting layout
 │   ├── live.md                    live mode and schematic mode guide
+│   ├── electrical.md              AutoCAD Electrical projects: read, report, audit, install capture
 │   ├── tools.md                   every tool and parameter (generated)
 │   └── images/                    README pictures
 ├── examples/claude_desktop_config.json
-└── tests/                         offline workflow, live (simulated AutoCAD), DIALux, plan/Excel, project workflow, schematic, docs
+└── tests/                         offline workflow, live (simulated AutoCAD), DIALux, plan/Excel, project workflow, schematic, Electrical projects, docs and skill
 ```
 
 ## Troubleshooting
@@ -447,8 +542,9 @@ Run `acad-electrical-mcp --selftest` first: `SELFTEST OK` means the server is fi
 pip install -e ".[dev]"
 ruff check . && pytest -q
 python scripts/gen_tool_docs.py --check     # docs/tools.md must match the server
+python scripts/check_skill.py               # the skill only names tools that exist
 ```
-When you add or change a tool, run `python scripts/gen_tool_docs.py` and add it to the README table (a test fails if the README misses a tool or links to a missing file). The README pictures need matplotlib and, for the Excel picture, LibreOffice Calc and `pdftoppm`.
+When you add or change a tool, run `python scripts/gen_tool_docs.py`, add it to the README table, and classify it in `READ_ONLY` or `DESTRUCTIVE` in `server.py` if it is either (tests fail if the README misses a tool, a link is broken, or the skill names a tool that does not exist). When the version changes, update `.claude-plugin/*.json` too. The README pictures need matplotlib and, for the Excel picture, LibreOffice Calc and `pdftoppm`.
 
 ## License
 MIT

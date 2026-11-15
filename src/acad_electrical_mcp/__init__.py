@@ -1,3 +1,3 @@
-"""MCP server for AutoCAD Electrical floor drawings."""
+"""MCP server and companion tools for AutoCAD Electrical."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

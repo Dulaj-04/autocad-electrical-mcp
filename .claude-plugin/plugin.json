@@ -1,0 +1,13 @@
+{
+  "name": "autocad-electrical",
+  "version": "0.2.0",
+  "description": "AutoCAD Electrical companion: read, audit and report on Electrical projects (.wdp, BOM, from/to, terminals), edit the open drawing from chat, floor layouts, DIALux lighting and load schedules.",
+  "author": {
+    "name": "Dulaj-04",
+    "url": "https://github.com/Dulaj-04"
+  },
+  "homepage": "https://github.com/Dulaj-04/autocad-electrical-mcp",
+  "repository": "https://github.com/Dulaj-04/autocad-electrical-mcp",
+  "license": "MIT",
+  "keywords": ["autocad", "autocad-electrical", "electrical", "mcp", "dialux", "bom", "cad"]
+}
