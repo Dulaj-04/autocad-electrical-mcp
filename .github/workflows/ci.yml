@@ -17,3 +17,17 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest -q
+      - run: python scripts/check_skill.py
+
+  # Trial: the server's main users run it on Windows next to AutoCAD. Not yet required to pass,
+  # so a Windows-only path quirk shows up without blocking merges; make it required once green.
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q

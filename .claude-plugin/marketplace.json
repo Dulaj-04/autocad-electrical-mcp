@@ -1,0 +1,15 @@
+{
+  "name": "autocad-electrical-mcp",
+  "owner": {
+    "name": "Dulaj-04",
+    "url": "https://github.com/Dulaj-04"
+  },
+  "plugins": [
+    {
+      "name": "autocad-electrical",
+      "source": "./",
+      "description": "MCP server plus skill for AutoCAD Electrical and electrical installation drawings.",
+      "version": "0.2.0"
+    }
+  ]
+}
